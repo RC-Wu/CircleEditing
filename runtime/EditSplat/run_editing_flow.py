@@ -538,7 +538,10 @@ class Editsplat_Pipeline(FluxPipeline):
         method = str(getattr(ed, "flow_method", "flowedit")).strip().lower()
         model_key = str(getattr(ed, "flow_model_key", "flux1-dev")).strip()
 
-        self._external_edit_backend = None
+        if getattr(self, "_external_backend_only", False):
+            object.__setattr__(self, "_external_edit_backend", None)
+        else:
+            self._external_edit_backend = None
         if method in ("native", "native_flowedit"):
             print("[INFO] Using native FLUX FlowEdit path.")
             return
@@ -567,7 +570,11 @@ class Editsplat_Pipeline(FluxPipeline):
             dna_t_start=int(getattr(ed, "flow_dna_t_start", 13)),
             dna_mvg=float(getattr(ed, "flow_dna_mvg", 0.8)),
         )
-        self._external_edit_backend = FlowEditCoreBackend(config=cfg, project_root=str(Path(__file__).resolve().parent))
+        backend = FlowEditCoreBackend(config=cfg, project_root=str(Path(__file__).resolve().parent))
+        if getattr(self, "_external_backend_only", False):
+            object.__setattr__(self, "_external_edit_backend", backend)
+        else:
+            self._external_edit_backend = backend
         print(
             f"[INFO] External edit backend enabled: method={method}, model_key={model_key}, "
             f"adapter_device={self._external_edit_backend.device}"
