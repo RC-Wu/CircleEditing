@@ -571,17 +571,20 @@ class Editsplat_Pipeline(FluxPipeline):
           - x0_src: FlowEdit/FLUX 瑙勮寖涓嬬殑鈥滄ā鍨嬬敤 latent鈥濓紝褰㈢姸 [B, C_lat, H_lat, W_lat]
                     璁＄畻鏂瑰紡: x0_src = (vae.encode(preprocess(image)).latent_dist.mode() - shift) * scaling
         """
-        # A. 淇濊瘉鏄崟寮犲浘锛團lowEdit 鐨勮剼鏈€愬紶澶勭悊锛?        if isinstance(image, torch.Tensor):
-            # 浠呮敮鎸?B=1锛岃嫢浣犳湁鎵瑰鐞嗗彲鎸夐渶鎵╁睍
-            assert image.ndim == 4 and image.shape[0] == 1, "璇峰厛鎸?FlowEdit 鑴氭湰閫愬紶澶勭悊 (B=1)銆?
-            # 杞洖 PIL锛團lowEdit 鐢ㄧ殑鏄?PIL + image_processor锛?            # 纭繚绫诲瀷鍦?CPU/float32锛岄伩鍏?bfloat16 -> PIL 鎶ラ敊
+        # A. 保证是单张图（FlowEdit 的脚本逐张处理）
+        if isinstance(image, torch.Tensor):
+            # 仅支持 B=1，若你有批处理可按需扩展
+            assert image.ndim == 4 and image.shape[0] == 1, "请先按 FlowEdit 脚本逐张处理 (B=1)。"
+            # 转回 PIL（FlowEdit 用的是 PIL + image_processor）
+            # 确保类型在 CPU/float32，避免 bfloat16 -> PIL 报错
             img_pil = Image.fromarray(
                 (image[0].detach().cpu().clamp(0,1).permute(1,2,0).numpy() * 255).astype("uint8")
             )
         else:
             img_pil = image
 
-        # B. 瑁佸壀鍒?16 鐨勬暣闄わ紙FlowEdit 閫愬彞鐓ф惉锛?        W, H = img_pil.size
+        # B. 裁剪到 16 的整除（FlowEdit 逐句照搬）
+        W, H = img_pil.size
         Wc, Hc = W - (W % 16), H - (H % 16)
         if (Wc != W) or (Hc != H):
             img_pil = img_pil.crop((0, 0, Wc, Hc))
