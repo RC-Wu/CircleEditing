@@ -779,11 +779,13 @@ class Editsplat_Pipeline(FluxPipeline):
             t_i = scheduler.sigmas[scheduler.step_index]
             t_im1 = scheduler.sigmas[scheduler.step_index + 1] if i < len(timesteps) - 1 else t_i
 
-            # (A) ODE 娈碉細浠呴€熷害宸?            if diffusion_steps - i > n_min:
+            # (A) ODE 段：仅速度差
+            if diffusion_steps - i > n_min:
 
                 V_delta_avg = torch.zeros_like(x_src_packed)
                 for _ in range(n_avg):
-                    # 婧愬垎甯冨墠鍚戠偣/鐩爣瀵归綈鐐?                    fwd_noise = torch.randn_like(x_src_packed)
+                    # 源分布前向点 / 目标对齐点
+                    fwd_noise = torch.randn_like(x_src_packed)
                     zt_src = (1.0 - t_i) * x_src_packed + t_i * fwd_noise
                     zt_tar = zt_edit + zt_src - x_src_packed
 
