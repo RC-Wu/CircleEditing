@@ -62,6 +62,7 @@ from utils.rgbd_warping import reproject_rgbd, reprojected2img
 from utils.camera_proximity_utils import find_nearby_camera
 from utils.flow_utils import scale_noise, calculate_shift, calc_v_flux
 from utils.semantic_guidance import build_semantic_guidance, expand_loss_guidance_mask
+from utils.runtime_bootstrap import should_bootstrap_external_backend_only
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -519,6 +520,19 @@ def calculate_shift(
     return mu
 
 class Editsplat_Pipeline(FluxPipeline):
+    @classmethod
+    def build_external_backend_only(cls):
+        pipe = object.__new__(cls)
+        pipe._external_backend_only = True
+        pipe._external_edit_backend = None
+        pipe.transformer = None
+        return pipe
+
+    def to(self, *args, **kwargs):
+        if getattr(self, "_external_backend_only", False):
+            return self
+        return super().to(*args, **kwargs)
+
     def configure_edit_backend(self, ed) -> None:
         method = str(getattr(ed, "flow_method", "flowedit")).strip().lower()
         model_key = str(getattr(ed, "flow_model_key", "flux1-dev")).strip()
@@ -1355,9 +1369,12 @@ class Editsplat_Pipeline(FluxPipeline):
         # trg_prompt_embeds = self._encode_prompt(
         #     ed.target_prompt, device=self._execution_device, num_images_per_prompt=1, do_classifier_free_guidance=True, negative_prompt=""
         # )
-        self.transformer = self.transformer.to(torch.bfloat16)
-        self.transformer.eval()
-        self.transformer.requires_grad_(False)
+        if getattr(self, "transformer", None) is not None:
+            self.transformer = self.transformer.to(torch.bfloat16)
+            self.transformer.eval()
+            self.transformer.requires_grad_(False)
+        else:
+            print("[INFO] External-backend-only bootstrap: skip Flux transformer preparation.")
         # load ImageReward
         reward_model = _load_reward_model()
 
@@ -1928,19 +1945,33 @@ if __name__ == "__main__":
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    pipeline = Editsplat_Pipeline.from_pretrained(
-        "black-forest-labs/FLUX.1-dev",
-        torch_dtype=dtype,
-        use_safetensors=True,
-        token=os.environ.get("HF_TOKEN", None),
-    ).to(device)
-
     # 取出每个参数组
     dataset = lp.extract(args)
     opt = op.extract(args)
     pipe = pp.extract(args)
     edp = ed.extract(args)
-    sdp = sdp.extract(args)
+    sdp_cfg = sdp.extract(args)
+
+    base_model_id = os.environ.get("EDITSPLAT_BASE_MODEL_ID", "black-forest-labs/FLUX.1-dev")
+    external_backend_only = should_bootstrap_external_backend_only(
+        flow_method=getattr(edp, "flow_method", "flowedit"),
+        flow_model_key=getattr(edp, "flow_model_key", "flux1-dev"),
+        env_enabled=_env_flag("EDITSPLAT_EXTERNAL_BACKEND_ONLY", False),
+    )
+    if external_backend_only:
+        print(
+            "[WARN] EDITSPLAT_EXTERNAL_BACKEND_ONLY=1: "
+            f"skip base FLUX bootstrap for flow_method={getattr(edp, 'flow_method', '')} "
+            f"flow_model_key={getattr(edp, 'flow_model_key', '')}."
+        )
+        pipeline = Editsplat_Pipeline.build_external_backend_only()
+    else:
+        pipeline = Editsplat_Pipeline.from_pretrained(
+            base_model_id,
+            torch_dtype=dtype,
+            use_safetensors=True,
+            token=os.environ.get("HF_TOKEN", None),
+        ).to(device)
     pipeline.configure_edit_backend(edp)
 
     os.makedirs(dataset.model_path, exist_ok=True)
@@ -1953,7 +1984,7 @@ if __name__ == "__main__":
         opt=opt,
         pipe=pipe,
         ed=edp,
-        sdp=sdp,          # 新增
+        sdp=sdp_cfg,          # 新增
     )
 
     print("\nEditing complete.")
