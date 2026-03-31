@@ -61,6 +61,7 @@ from utils.loss_utils import l1_loss
 from utils.rgbd_warping import reproject_rgbd, reprojected2img
 from utils.camera_proximity_utils import find_nearby_camera
 from utils.flow_utils import scale_noise, calculate_shift, calc_v_flux
+from utils.semantic_guidance import build_semantic_guidance, expand_loss_guidance_mask
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -282,11 +283,7 @@ def _normalize_langsam_mask(
 
     if tuple(mask.shape[-2:]) != (image_height, image_width):
         mask = F.interpolate(mask.unsqueeze(0), size=(image_height, image_width), mode="nearest").squeeze(0)
-    mask = mask.float().clamp(0.0, 1.0)
-    if _env_flag("EDITSPLAT_BINARIZE_SUPPORT_MASK", True):
-        threshold = float(os.environ.get("EDITSPLAT_SUPPORT_MASK_THRESHOLD", "0.0"))
-        return (mask > threshold).float()
-    return mask
+    return (mask > 0).float()
 
 
 def _predict_langsam_mask(
@@ -295,9 +292,7 @@ def _predict_langsam_mask(
     text_prompt: str,
     image_height: int,
     image_width: int,
-    mask_role: Optional[str] = None,
 ) -> torch.Tensor:
-    del mask_role
     if text_prompt == "no_mask":
         return _full_image_mask(image_height, image_width)
     try:
@@ -330,24 +325,6 @@ def _save_debug_tensor(x: torch.Tensor, out_path: Path) -> None:
         return
     arr = (x01[0].permute(1, 2, 0).numpy() * 255.0).round().astype(np.uint8)
     Image.fromarray(arr).save(out_path)
-
-
-def _initial_edit_diff_score(edited_image: torch.Tensor, gt_image: torch.Tensor) -> float:
-    edited = _to_01_bchw(edited_image)
-    gt = _to_01_bchw(gt_image)
-    if tuple(edited.shape[-2:]) != tuple(gt.shape[-2:]):
-        gt = F.interpolate(gt, size=edited.shape[-2:], mode="bilinear", align_corners=False)
-    return float((edited - gt).abs().mean().item())
-
-
-def _pick_frontier_anchor(initial_edit_scores: List[float], candidate_indices: List[int]) -> int:
-    if not candidate_indices:
-        candidate_indices = list(range(len(initial_edit_scores)))
-    center = 0.5 * max(0, len(initial_edit_scores) - 1)
-    return max(
-        candidate_indices,
-        key=lambda idx: (float(initial_edit_scores[idx]), -abs(float(idx) - center)),
-    )
 
 
 def _prepare_debug_root(model_path: str) -> Optional[Path]:
@@ -1471,7 +1448,6 @@ class Editsplat_Pipeline(FluxPipeline):
             edited_image_pil_list_RM = []
             rendered_depth_list = []
             is_top_selection = []
-            initial_edit_scores = []
 
             for step, batch in enumerate(tqdm(train_dataloader, desc="Initial editing progress")):
                 
@@ -1502,7 +1478,6 @@ class Editsplat_Pipeline(FluxPipeline):
                 edited_image = F.interpolate(edited_image, size=(image_height, image_width), mode='bilinear', align_corners=True).to(torch.float32)
 
                 edited_image_list.append(edited_image.squeeze(0).detach().cpu().clone())
-                initial_edit_scores.append(_initial_edit_diff_score(edited_image, gt_image))
 
                 # save pil image for imagereward sampling
                 edited_pil = topilimage(edited_image.squeeze(0))
@@ -1563,34 +1538,7 @@ class Editsplat_Pipeline(FluxPipeline):
                     json.dumps(selection_meta, indent=2, ensure_ascii=False),
                     encoding="utf-8",
                 )
-
-        frontier_anchor_idx = None
-        frontier_neighbor_set = set()
-        if mfg_mode == "frontier_seed1":
-            frontier_candidates = [idx for idx, flag in enumerate(is_top_selection) if flag]
-            frontier_anchor_idx = _pick_frontier_anchor(initial_edit_scores, frontier_candidates)
-            frontier_neighbor_set = {
-                int(x)
-                for x in camera_dist_order[frontier_anchor_idx][1 : 1 + max(1, mfg_source_count)]
-            }
-            frontier_meta = {
-                "anchor_idx": int(frontier_anchor_idx),
-                "anchor_score": float(initial_edit_scores[frontier_anchor_idx]),
-                "neighbor_indices": sorted(int(x) for x in frontier_neighbor_set),
-                "candidate_indices": [int(x) for x in frontier_candidates],
-            }
-            print(
-                "[FRONTIER] "
-                f"anchor={frontier_meta['anchor_idx']} "
-                f"score={frontier_meta['anchor_score']:.6f} "
-                f"neighbors={frontier_meta['neighbor_indices']}"
-            )
-            if debug_root is not None:
-                (debug_root / "selection" / "frontier_seed1.json").write_text(
-                    json.dumps(frontier_meta, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-
+            
 
         """Multi-View Fusion Guidance (MFG)"""
         edited_image_MFG_list = []
@@ -1601,42 +1549,6 @@ class Editsplat_Pipeline(FluxPipeline):
             idx = batch['idx'].item() # current camera index
 
             gt_image = F.interpolate(gt_image, size=(image_height, image_width), mode='bilinear', align_corners=True) 
-
-            if mfg_mode == "frontier_seed1" and frontier_anchor_idx is not None:
-                is_anchor_view = idx == frontier_anchor_idx
-                is_frontier_neighbor = idx in frontier_neighbor_set
-                if is_anchor_view or not is_frontier_neighbor:
-                    gt_image_np = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
-                    gt_image_pil = Image.fromarray((gt_image_np * 255).astype(np.uint8))
-                    gt_mask = _predict_langsam_mask(
-                        lang_sam=lang_sam,
-                        image_pil=gt_image_pil,
-                        text_prompt=ed.target_mask_prompt,
-                        image_height=image_height,
-                        image_width=image_width,
-                        mask_role="gt_view",
-                    )
-                    edited_image_MFG = edited_image_list[idx].unsqueeze(0).to(torch.float32)
-                    attn_list.append(gt_mask.to(render_device))
-                    edited_image_MFG_list.append(edited_image_MFG.squeeze(0).detach().cpu().clone())
-                    _dump_stage_payload(
-                        debug_root=debug_root,
-                        stage="mfg_edit",
-                        view_idx=idx,
-                        payload={
-                            "gt": gt_image,
-                            "initial_edit": edited_image_MFG,
-                            "gt_mask": gt_mask,
-                            "mfg_output": edited_image_MFG,
-                        },
-                        meta={
-                            "mfg_mode": mfg_mode,
-                            "frontier_role": "anchor" if is_anchor_view else "context_passthrough",
-                            "frontier_anchor_idx": int(frontier_anchor_idx),
-                            "source_indices": [int(idx)],
-                        },
-                    )
-                    continue
 
             if mfg_mode == "initial_only":
                 full_mask = torch.ones((1, image_height, image_width), dtype=torch.float32, device=render_device)
@@ -1665,23 +1577,20 @@ class Editsplat_Pipeline(FluxPipeline):
                 src_cam_idx_list = []
                 dst_cam_idx = idx
 
-                if mfg_mode == "frontier_seed1" and frontier_anchor_idx is not None and idx in frontier_neighbor_set:
-                    src_cam_idx_list = [int(frontier_anchor_idx)]
-                else:
-                    # Prefer top-ranked source views; then backfill from nearest views.
-                    # This avoids dead loops when very few views are marked as top.
+                # Prefer top-ranked source views; then backfill from nearest views.
+                # This avoids dead loops when very few views are marked as top.
+                for camera_idx in camera_dist_order[idx][1:]:
+                    if is_top_selection[camera_idx]:
+                        src_cam_idx_list.append(camera_idx)
+                    if len(src_cam_idx_list) >= mfg_source_count:
+                        break
+
+                if len(src_cam_idx_list) < mfg_source_count and mfg_backfill != "selected_only":
                     for camera_idx in camera_dist_order[idx][1:]:
-                        if is_top_selection[camera_idx]:
+                        if camera_idx not in src_cam_idx_list:
                             src_cam_idx_list.append(camera_idx)
                         if len(src_cam_idx_list) >= mfg_source_count:
                             break
-
-                    if len(src_cam_idx_list) < mfg_source_count and mfg_backfill != "selected_only":
-                        for camera_idx in camera_dist_order[idx][1:]:
-                            if camera_idx not in src_cam_idx_list:
-                                src_cam_idx_list.append(camera_idx)
-                            if len(src_cam_idx_list) >= mfg_source_count:
-                                break
 
                 if len(src_cam_idx_list) == 0:
                     src_cam_idx_list = [dst_cam_idx]
@@ -1719,30 +1628,15 @@ class Editsplat_Pipeline(FluxPipeline):
                 
                 dst_image_np = dst_image.detach().cpu().numpy().transpose(1, 2, 0).clip(0, 1)
                 dst_image_pil = Image.fromarray((dst_image_np * 255).astype(np.uint8))
-                gt_image_np = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
-                gt_image_pil = Image.fromarray((gt_image_np * 255).astype(np.uint8))
                 
                 reprejected_image = dst_image.unsqueeze(0)
-                frontier_target_mask = None
-                if mfg_mode == "frontier_seed1" and frontier_anchor_idx is not None and idx in frontier_neighbor_set:
-                    frontier_target_mask = _predict_langsam_mask(
-                        lang_sam=lang_sam,
-                        image_pil=gt_image_pil,
-                        text_prompt=ed.target_mask_prompt,
-                        image_height=image_height,
-                        image_width=image_width,
-                        mask_role="gt_view",
-                    )
-                    mask = frontier_target_mask
-                else:
-                    mask = _predict_langsam_mask(
-                        lang_sam=lang_sam,
-                        image_pil=dst_image_pil,
-                        text_prompt=ed.target_mask_prompt,
-                        image_height=image_height,
-                        image_width=image_width,
-                        mask_role="reproject",
-                    )
+                mask = _predict_langsam_mask(
+                    lang_sam=lang_sam,
+                    image_pil=dst_image_pil,
+                    text_prompt=ed.target_mask_prompt,
+                    image_height=image_height,
+                    image_width=image_width,
+                )
 
                 # background replacement
                 MF_image = reprejected_image * mask.to(reprejected_image.device)
@@ -1801,17 +1695,13 @@ class Editsplat_Pipeline(FluxPipeline):
             alter_np_gt_img_pil = Image.fromarray((alter_np_gt_img * 255).astype(np.uint8))
             
             # reprejected_image = dst_image.unsqueeze(0)
-            if mfg_mode == "frontier_seed1" and frontier_target_mask is not None:
-                alter_gt_mask = frontier_target_mask
-            else:
-                alter_gt_mask = _predict_langsam_mask(
-                    lang_sam=lang_sam,
-                    image_pil=alter_np_gt_img_pil,
-                    text_prompt=ed.target_mask_prompt,
-                    image_height=image_height,
-                    image_width=image_width,
-                    mask_role="gt_view",
-                )
+            alter_gt_mask = _predict_langsam_mask(
+                lang_sam=lang_sam,
+                image_pil=alter_np_gt_img_pil,
+                text_prompt=ed.target_mask_prompt,
+                image_height=image_height,
+                image_width=image_width,
+            )
 
             # trg_object_average_attention_map_512 = torch.tensor(trg_object_average_attention_map_512)
 
@@ -1838,7 +1728,6 @@ class Editsplat_Pipeline(FluxPipeline):
                 meta={
                     "mfg_mode": mfg_mode,
                     "mfg_backfill": mfg_backfill,
-                    "frontier_anchor_idx": int(frontier_anchor_idx) if frontier_anchor_idx is not None else None,
                     "source_indices": [int(x) for x in src_cam_idx_list],
                     "selected_source_indices": [int(i) for i, flag in enumerate(is_top_selection) if flag],
                 },
@@ -1873,8 +1762,23 @@ class Editsplat_Pipeline(FluxPipeline):
             attn_weights /= attn_weights_cnt + 1e-7
             selected_mask = attn_weights[:, 0]
 
-        gaussians.set_mask(selected_mask)
-        gaussians.apply_grad_mask(selected_mask)
+        semantic_guidance_enabled = _env_flag("EDITSPLAT_ENABLE_SEMANTIC_GS_GUIDANCE", False)
+        semantic_guidance = build_semantic_guidance(
+            selected_mask=selected_mask,
+            support_mask=None,
+            enabled=semantic_guidance_enabled,
+            support_weight=float(os.environ.get("EDITSPLAT_SEMANTIC_SUPPORT_WEIGHT", "0.5")),
+            color_scale=float(os.environ.get("EDITSPLAT_SEMANTIC_COLOR_SCALE", "1.0")),
+            position_scale=float(os.environ.get("EDITSPLAT_SEMANTIC_POSITION_SCALE", "1.0")),
+            freeze_geometry=_env_flag("EDITSPLAT_SEMANTIC_FREEZE_GEOMETRY", False),
+        )
+
+        gaussians.set_mask(semantic_guidance.mask)
+        gaussians.apply_grad_mask(
+            semantic_guidance.mask,
+            l_color=semantic_guidance.color_scale,
+            l_position=semantic_guidance.position_scale,
+        )
 
         iteration = start_iteration
         skip_backward_on_error = _env_flag("EDITSPLAT_SKIP_3DGS_BACKWARD_ON_ERROR", False)
@@ -1910,9 +1814,23 @@ class Editsplat_Pipeline(FluxPipeline):
                 if edited_image_MFG_for_3dgs.shape[1] != image_height or edited_image_MFG_for_3dgs.shape[2] != image_width:
                     edited_image_MFG_for_3dgs = F.interpolate(edited_image_MFG_for_3dgs, size=(image_height, image_width), mode='bilinear', align_corners=True)
 
+                loss_guidance_mask = None
+                if semantic_guidance_enabled and idx < len(attn_list):
+                    loss_guidance_mask = expand_loss_guidance_mask(
+                        mask=attn_list[idx].to(device=rendered_image.device, dtype=rendered_image.dtype),
+                        background_weight=float(os.environ.get("EDITSPLAT_SEMANTIC_BG_WEIGHT", "0.15")),
+                    )
+
                 # calculate loss
-                Ll1 = l1_loss(rendered_image, edited_image_MFG_for_3dgs)
-                p_loss = lpips_loss_fn(torch.clamp(edited_image_MFG_for_3dgs, -1, 1), torch.clamp(rendered_image, -1, 1))
+                if loss_guidance_mask is not None:
+                    Ll1 = l1_loss(rendered_image * loss_guidance_mask, edited_image_MFG_for_3dgs * loss_guidance_mask)
+                    p_loss = lpips_loss_fn(
+                        torch.clamp(edited_image_MFG_for_3dgs * loss_guidance_mask, -1, 1),
+                        torch.clamp(rendered_image * loss_guidance_mask, -1, 1),
+                    )
+                else:
+                    Ll1 = l1_loss(rendered_image, edited_image_MFG_for_3dgs)
+                    p_loss = lpips_loss_fn(torch.clamp(edited_image_MFG_for_3dgs, -1, 1), torch.clamp(rendered_image, -1, 1))
                 
                 total_loss = Ll1 + p_loss 
 
@@ -1997,67 +1915,4 @@ def set_seed(seed):
 if __name__ == "__main__":
     parser = ArgumentParser(description="Editing Training script parameters")
 
-    # 组装参数组（注意：这里仅实例化，真正的值来自命令行）
-    lp = ModelParams(parser)
-    op = OptimizationParams(parser)
-    pp = PipelineParams(parser)
-    ed = EditingParams(parser)
-    sdp = ScoreDistillParams(parser)
-
-    args = parser.parse_args(sys.argv[1:])
-
-    set_seed(0)
-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    pipeline = Editsplat_Pipeline.from_pretrained(
-        "black-forest-labs/FLUX.1-dev",
-        torch_dtype=dtype,
-        use_safetensors=True,
-        token=os.environ.get("HF_TOKEN", None),
-    ).to(device)
-
-    # 取出每个参数组
-    dataset = lp.extract(args)
-    opt = op.extract(args)
-    pipe = pp.extract(args)
-    edp = ed.extract(args)
-    sdp = sdp.extract(args)
-    pipeline.configure_edit_backend(edp)
-
-    os.makedirs(dataset.model_path, exist_ok=True)
-    with open(os.path.join(dataset.model_path, 'args.json'), 'w') as f:
-        json.dump(vars(args), f, indent=2)
-    shutil.copyfile(__file__, os.path.join(dataset.model_path, 'train_frozen.py'))
-
-    _ = pipeline(
-        dataset=dataset,
-        opt=opt,
-        pipe=pipe,
-        ed=edp,
-        sdp=sdp,          # 新增
-    )
-
-    print("\nEditing complete.")
-'''
-python run_editing_flow.py \
-    -s ./dataset/dataset/face \
-    -m output/face_to_hulk \
-    --source_checkpoint ./dataset/pretrained/face/chkpnt30000.pth \
-    --flow_model_key sd35-large \
-    --flow_method flowedit \
-    --object_prompt "face" \
-    --target_prompt "Make his face resemble that of a marble sculpture" \
-    --sampling_prompt "a photo of a joker" \
-    --target_mask_prompt "face" \
-    --flow_src_prompt "a photo of a young man with wavy light-brown hair, wearing a gray zip sweater." \
-    --flow_tar_prompt "a photo of a Hulk with red hair, wearing a gray zip sweater." \
-    --flow_steps 28 \
-    --flow_n_avg 1 \
-    --flow_src_guidance_scale 1.5 \
-    --flow_tar_guidance_scale 10.5 \
-    --flow_n_min 0 \
-    --flow_n_max 18 \
-    --flow_seed 10 \
-    --filtering_ratio 0.65 
-'''
+    # 组装参
