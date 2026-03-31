@@ -6,7 +6,7 @@ import os
 import subprocess
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -14,6 +14,13 @@ from typing import Dict, List, Optional
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 SANDBOX_ROOT = Path(
@@ -123,6 +130,14 @@ class Experiment:
     ttt3r_preserve_min_mass: float = 0.0
     ttt3r_adaptive_max_scale: float = 3.0
     ttt3r_schedule_power: float = 2.0
+    elite_conf_correction: bool = False
+    elite_support_alpha: float = 0.35
+    elite_edit_alpha: float = 0.35
+    elite_confidence_alpha: float = 0.45
+    elite_scale_min: float = 0.0
+    elite_scale_max: float = 1.0
+    blite_canonical_prior: bool = False
+    blite_canonical_dump: bool = True
     disable_densify: bool = False
     freeze_geometry: bool = False
     freeze_opacity: bool = False
@@ -456,8 +471,39 @@ def _apply_cycle_variant() -> None:
                 exp.max_gaussians = max(52000, exp.max_gaussians - 3000 * RUN_VARIANT)
 
 
+def _inject_elite_blite_optin_experiments() -> None:
+    if _env_flag("EDITSPLAT_ENABLE_ELITE_EXPERIMENTS", False):
+        base = next((exp for exp in EXPERIMENTS_BY_GPU.get(1, []) if exp.name == "clown_reliability_precision_mild"), None)
+        if base is not None:
+            EXPERIMENTS_BY_GPU.setdefault(1, []).append(
+                replace(
+                    base,
+                    name=f"{base.name}_elite_optin",
+                    elite_conf_correction=True,
+                    elite_support_alpha=0.45,
+                    elite_edit_alpha=0.35,
+                    elite_confidence_alpha=0.55,
+                    elite_scale_min=0.10,
+                    elite_scale_max=1.00,
+                )
+            )
+
+    if _env_flag("EDITSPLAT_ENABLE_BLITE_EXPERIMENTS", False):
+        base = next((exp for exp in EXPERIMENTS_BY_GPU.get(2, []) if exp.name == "clown_support_app_balanced_gsopt"), None)
+        if base is not None:
+            EXPERIMENTS_BY_GPU.setdefault(2, []).append(
+                replace(
+                    base,
+                    name=f"{base.name}_blite_prior_optin",
+                    blite_canonical_prior=True,
+                    blite_canonical_dump=True,
+                )
+            )
+
+
 _align_sam3_repair_mirror()
 _apply_cycle_variant()
+_inject_elite_blite_optin_experiments()
 
 
 class State:
@@ -773,6 +819,14 @@ def worker_loop(gpu: int, queue: List[Experiment]) -> None:
                 "EDITSPLAT_ACTIVE_MODEL_PATH": str(model_path),
                 "EDITSPLAT_SAM3_DEBUG_ROOT": str(model_path),
                 "EDITSPLAT_SAM3_DEBUG_LIMIT": "4",
+                "EDITSPLAT_ELITE_CONF_CORRECTION": "1" if exp.elite_conf_correction else "0",
+                "EDITSPLAT_ELITE_SUPPORT_ALPHA": str(exp.elite_support_alpha),
+                "EDITSPLAT_ELITE_EDIT_ALPHA": str(exp.elite_edit_alpha),
+                "EDITSPLAT_ELITE_CONFIDENCE_ALPHA": str(exp.elite_confidence_alpha),
+                "EDITSPLAT_ELITE_SCALE_MIN": str(exp.elite_scale_min),
+                "EDITSPLAT_ELITE_SCALE_MAX": str(exp.elite_scale_max),
+                "EDITSPLAT_BLITE_CANONICAL_PRIOR": "1" if exp.blite_canonical_prior else "0",
+                "EDITSPLAT_BLITE_CANONICAL_DUMP": "1" if exp.blite_canonical_dump else "0",
             }
         )
         if exp.name.startswith("probe_diffgs_illegal"):
@@ -803,6 +857,8 @@ def worker_loop(gpu: int, queue: List[Experiment]) -> None:
                 "max_train_views": exp.max_train_views,
                 "max_gaussians": exp.max_gaussians,
                 "cuda_launch_blocking": exp.cuda_launch_blocking,
+                "elite_conf_correction": exp.elite_conf_correction,
+                "blite_canonical_prior": exp.blite_canonical_prior,
                 "return_code": None,
                 "ended_at_utc": None,
                 "mask_backend_info": None,

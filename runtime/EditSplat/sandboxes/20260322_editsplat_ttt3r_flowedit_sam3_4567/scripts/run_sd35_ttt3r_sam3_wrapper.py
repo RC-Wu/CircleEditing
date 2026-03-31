@@ -50,6 +50,13 @@ for _cache_dir in (
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from utils.ttt3r_elite_blite import (
+    ELiteCorrectionConfig,
+    SourceCanonicalPrior,
+    apply_elite_correction_weights,
+    update_source_canonical_prior,
+)
+
 
 _MASK_BACKEND_INFO = {
     "requested": None,
@@ -345,6 +352,7 @@ def _patch_ttt3r_runtime_device() -> None:
         self.fit_view_dumped_keys = set()
         self.support_mask_cache = {}
         self.support_mask_meta = {}
+        self.source_canonical_prior = SourceCanonicalPrior()
 
         global _CURRENT_RUNTIME
         _CURRENT_RUNTIME = self
@@ -488,6 +496,13 @@ def _env_float(name: str, default: float) -> float:
         return float(raw)
     except ValueError:
         return float(default)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_support_role(role: Optional[str]) -> str:
@@ -1414,6 +1429,121 @@ def _patch_fit_mask_fusion() -> None:
 
 
 _patch_fit_mask_fusion()
+
+
+def _patch_elite_confidence_and_blite_prior() -> None:
+    orig_sd3_edit = getattr(_LEGACY_WRAPPER, "_sd3_edit_with_proximal", None)
+    if orig_sd3_edit is None or getattr(orig_sd3_edit, "_editsplat_elite_blite_patch", False):
+        return
+
+    def _sd3_edit_with_elite_blite(
+        adapter,
+        image_pil,
+        proxy_pil,
+        src_prompt,
+        tar_prompt,
+        params,
+        edit_weight_px: torch.Tensor,
+        preserve_weight_px: torch.Tensor,
+        runtime,
+    ):
+        corrected_edit = edit_weight_px
+        corrected_preserve = preserve_weight_px
+        support_mask = None
+        idx = int(getattr(runtime, "current_idx", -1))
+        support_role = os.environ.get("EDITSPLAT_SAM3_MFG_ROLE", "gt_view")
+        support_payload = _get_support_payload(runtime, idx, role=support_role)
+        support_mask = _payload_mask(support_payload, image_size=tuple(edit_weight_px.shape[-2:]))
+        if isinstance(support_mask, torch.Tensor):
+            support_mask = support_mask.to(device=edit_weight_px.device, dtype=edit_weight_px.dtype)
+
+        confidence_weight = (edit_weight_px + preserve_weight_px).clamp(0.0, 1.0)
+        edit_mask = (edit_weight_px / (confidence_weight + 1e-6)).clamp(0.0, 1.0)
+        elite_cfg = ELiteCorrectionConfig(
+            enabled=_env_flag("EDITSPLAT_ELITE_CONF_CORRECTION", False),
+            support_alpha=max(0.0, min(1.0, _env_float("EDITSPLAT_ELITE_SUPPORT_ALPHA", 0.35))),
+            edit_alpha=max(0.0, min(1.0, _env_float("EDITSPLAT_ELITE_EDIT_ALPHA", 0.35))),
+            confidence_alpha=max(0.0, min(1.0, _env_float("EDITSPLAT_ELITE_CONFIDENCE_ALPHA", 0.45))),
+            scale_min=max(0.0, _env_float("EDITSPLAT_ELITE_SCALE_MIN", 0.0)),
+            scale_max=max(0.0, _env_float("EDITSPLAT_ELITE_SCALE_MAX", 1.0)),
+        )
+        corrected_edit, corrected_preserve, combo_weight = apply_elite_correction_weights(
+            edit_weight=edit_weight_px,
+            preserve_weight=preserve_weight_px,
+            support_weight=support_mask,
+            edit_mask=edit_mask,
+            confidence_weight=confidence_weight,
+            cfg=elite_cfg,
+        )
+        combo_mean = (
+            float(combo_weight.float().mean().item())
+            if isinstance(combo_weight, torch.Tensor)
+            else float(np.asarray(combo_weight, dtype=np.float32).mean())
+        )
+        if elite_cfg.enabled and not getattr(runtime, "_editsplat_elite_correction_logged", False):
+            print(
+                "[E-lite] confidence correction enabled: "
+                f"support_alpha={elite_cfg.support_alpha:.3f} "
+                f"edit_alpha={elite_cfg.edit_alpha:.3f} "
+                f"confidence_alpha={elite_cfg.confidence_alpha:.3f} "
+                f"combo_mean={combo_mean:.4f}"
+            )
+            runtime._editsplat_elite_correction_logged = True
+
+        if _env_flag("EDITSPLAT_BLITE_CANONICAL_PRIOR", False):
+            prior = getattr(runtime, "source_canonical_prior", None)
+            if not isinstance(prior, SourceCanonicalPrior):
+                prior = SourceCanonicalPrior()
+                runtime.source_canonical_prior = prior
+            update_source_canonical_prior(
+                prior=prior,
+                view_idx=idx,
+                edit_weight=corrected_edit,
+                preserve_weight=corrected_preserve,
+                confidence_weight=confidence_weight,
+                support_weight=support_mask,
+                metadata={
+                    "mode": str(getattr(getattr(runtime, "cfg", None), "mode", "unknown")),
+                    "support_role": support_role,
+                    "elite_enabled": bool(elite_cfg.enabled),
+                    "elite_combo_mean": combo_mean,
+                },
+            )
+            if _env_flag("EDITSPLAT_BLITE_CANONICAL_DUMP", True):
+                dump_base = getattr(runtime, "dump_root", None)
+                if dump_base is None:
+                    model_path = os.environ.get("EDITSPLAT_ACTIVE_MODEL_PATH")
+                    if model_path:
+                        dump_base = Path(model_path) / "debug_intermediates"
+                if dump_base is not None:
+                    dump_dir = Path(dump_base)
+                    dump_dir.mkdir(parents=True, exist_ok=True)
+                    dump_path = dump_dir / "source_canonical_prior_summary.json"
+                    dump_path.write_text(
+                        json.dumps(prior.to_serializable(), indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    if not getattr(runtime, "_editsplat_blite_prior_logged", False):
+                        print(f"[B-lite] source canonical prior summary path={dump_path}")
+                        runtime._editsplat_blite_prior_logged = True
+
+        return orig_sd3_edit(
+            adapter=adapter,
+            image_pil=image_pil,
+            proxy_pil=proxy_pil,
+            src_prompt=src_prompt,
+            tar_prompt=tar_prompt,
+            params=params,
+            edit_weight_px=corrected_edit,
+            preserve_weight_px=corrected_preserve,
+            runtime=runtime,
+        )
+
+    _sd3_edit_with_elite_blite._editsplat_elite_blite_patch = True  # type: ignore[attr-defined]
+    _LEGACY_WRAPPER._sd3_edit_with_proximal = _sd3_edit_with_elite_blite
+
+
+_patch_elite_confidence_and_blite_prior()
 
 
 def _maybe_dump_sam3_failure(image_pil: Image.Image, prompt: str, reason: str) -> None:
