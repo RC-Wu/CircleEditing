@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 import random
 from argparse import ArgumentParser
@@ -443,7 +443,7 @@ def _resolve_reward_selection(ranking, rewards, filtering_ratio: float, num_item
 
 class HeadCameraDataset(Dataset):
     def __init__(self, base_dataset, k: int):
-        # 保留 camera_list 属性，供 pipeline 使用
+        # 淇濈暀 camera_list 灞炴€э紝渚?pipeline 浣跨敤
         self.camera_list = base_dataset.camera_list[:k]
 
     def __len__(self):
@@ -452,21 +452,20 @@ class HeadCameraDataset(Dataset):
     def __getitem__(self, idx):
         cam = self.camera_list[idx]
         return {
-            "idx": idx,                  # 若要保留原始全局 idx，可在这里换成别的映射
-            "gt_image": cam.gt_image,
+            "idx": idx,                  # 鑻ヨ淇濈暀鍘熷鍏ㄥ眬 idx锛屽彲鍦ㄨ繖閲屾崲鎴愬埆鐨勬槧灏?            "gt_image": cam.gt_image,
         }
 
 def _lowpass_like(x: torch.Tensor, pack_shape: Tuple[int, int, int, int]) -> torch.Tensor:
     """
-    对 packed 的 [B, L, C] token 进行低频化（通过 unpack->blur->pack）；
-    pack_shape: (B, C, H, W) 对应的 reshape 信息
+    瀵?packed 鐨?[B, L, C] token 杩涜浣庨鍖栵紙閫氳繃 unpack->blur->pack锛夛紱
+    pack_shape: (B, C, H, W) 瀵瑰簲鐨?reshape 淇℃伅
     """
     B, C, H, W = pack_shape
     x_img = x.view(B, H * W, C).transpose(1, 2).contiguous().view(B, C, H, W)  # [B,C,H,W]
-    # 轻量低通：双线性下采样再上采样
+    # 杞婚噺浣庨€氾細鍙岀嚎鎬т笅閲囨牱鍐嶄笂閲囨牱
     x_low = F.interpolate(F.interpolate(x_img, scale_factor=0.5, mode="bilinear", align_corners=False),
                           size=(H, W), mode="bilinear", align_corners=False)
-    x_out = x_low.view(B, C, H * W).transpose(1, 2).contiguous()  # 回到 [B,L,C]
+    x_out = x_low.view(B, C, H * W).transpose(1, 2).contiguous()  # 鍥炲埌 [B,L,C]
     return x_out
 
 
@@ -566,36 +565,31 @@ class Editsplat_Pipeline(FluxPipeline):
         use_autocast: bool = True,
     ) -> torch.Tensor:
         """
-        输入:
-          - image: 单张 PIL.Image 或 Tensor[B,3,H,W] (0..1)
-        输出:
-          - x0_src: FlowEdit/FLUX 规范下的“模型用 latent”，形状 [B, C_lat, H_lat, W_lat]
-                    计算方式: x0_src = (vae.encode(preprocess(image)).latent_dist.mode() - shift) * scaling
+        杈撳叆:
+          - image: 鍗曞紶 PIL.Image 鎴?Tensor[B,3,H,W] (0..1)
+        杈撳嚭:
+          - x0_src: FlowEdit/FLUX 瑙勮寖涓嬬殑鈥滄ā鍨嬬敤 latent鈥濓紝褰㈢姸 [B, C_lat, H_lat, W_lat]
+                    璁＄畻鏂瑰紡: x0_src = (vae.encode(preprocess(image)).latent_dist.mode() - shift) * scaling
         """
-        # A. 保证是单张图（FlowEdit 的脚本逐张处理）
-        if isinstance(image, torch.Tensor):
-            # 仅支持 B=1，若你有批处理可按需扩展
-            assert image.ndim == 4 and image.shape[0] == 1, "请先按 FlowEdit 脚本逐张处理 (B=1)。"
-            # 转回 PIL（FlowEdit 用的是 PIL + image_processor）
-            # 确保类型在 CPU/float32，避免 bfloat16 -> PIL 报错
+        # A. 淇濊瘉鏄崟寮犲浘锛團lowEdit 鐨勮剼鏈€愬紶澶勭悊锛?        if isinstance(image, torch.Tensor):
+            # 浠呮敮鎸?B=1锛岃嫢浣犳湁鎵瑰鐞嗗彲鎸夐渶鎵╁睍
+            assert image.ndim == 4 and image.shape[0] == 1, "璇峰厛鎸?FlowEdit 鑴氭湰閫愬紶澶勭悊 (B=1)銆?
+            # 杞洖 PIL锛團lowEdit 鐢ㄧ殑鏄?PIL + image_processor锛?            # 纭繚绫诲瀷鍦?CPU/float32锛岄伩鍏?bfloat16 -> PIL 鎶ラ敊
             img_pil = Image.fromarray(
                 (image[0].detach().cpu().clamp(0,1).permute(1,2,0).numpy() * 255).astype("uint8")
             )
         else:
             img_pil = image
 
-        # B. 裁剪到 16 的整除（FlowEdit 逐句照搬）
-        W, H = img_pil.size
+        # B. 瑁佸壀鍒?16 鐨勬暣闄わ紙FlowEdit 閫愬彞鐓ф惉锛?        W, H = img_pil.size
         Wc, Hc = W - (W % 16), H - (H % 16)
         if (Wc != W) or (Hc != H):
             img_pil = img_pil.crop((0, 0, Wc, Hc))
 
         # C. image_processor.preprocess -> Tensor[B,3,H,W]
-        #    （它会做 to_tensor/归一化/尺寸对齐等，行为与 FlowEdit 保持）
-        image_src = self.image_processor.preprocess(img_pil)   # [1,3,H,W], float32
-        image_src = image_src.to(device, dtype=self.vae.dtype) # ✅ 对齐到 VAE 的 dtype（fp16 或 bf16）
-
-        # D. VAE 编码 + “denorm -> model latent” 变换
+        #    锛堝畠浼氬仛 to_tensor/褰掍竴鍖?灏哄瀵归綈绛夛紝琛屼负涓?FlowEdit 淇濇寔锛?        image_src = self.image_processor.preprocess(img_pil)   # [1,3,H,W], float32
+        image_src = image_src.to(device, dtype=self.vae.dtype) # 鉁?瀵归綈鍒?VAE 鐨?dtype锛坒p16 鎴?bf16锛?
+        # D. VAE 缂栫爜 + 鈥渄enorm -> model latent鈥?鍙樻崲
         #    FlowEdit: mode() + ( - shift_factor ) * scaling_factor
         shift = getattr(self.vae.config, "shift_factor", 0.0)
         scale = getattr(self.vae.config, "scaling_factor", 1.0)
@@ -603,35 +597,32 @@ class Editsplat_Pipeline(FluxPipeline):
         if use_autocast:
             autocast_ctx = torch.autocast(device_type=str(device).split(":")[0])
         else:
-            # 空上下文
+            # 绌轰笂涓嬫枃
             from contextlib import nullcontext
             autocast_ctx = nullcontext()
 
         with autocast_ctx, torch.inference_mode():
             x0_src_denorm = self.vae.encode(image_src).latent_dist.mode()
 
-        x0_src = (x0_src_denorm - shift) * scale   # ⭐ 关键：与 FlowEdit 完全一致
-        return x0_src  # [1, C_lat, H_lat, W_lat]
+        x0_src = (x0_src_denorm - shift) * scale   # 猸?鍏抽敭锛氫笌 FlowEdit 瀹屽叏涓€鑷?        return x0_src  # [1, C_lat, H_lat, W_lat]
 
     @torch.no_grad()
     def postprocess_like_flowedit(
         self,
-        x0_tar: torch.Tensor,   # unpack 后的模型 latent（和 FlowEdit 返回的 x0_tar 语义一致）
+        x0_tar: torch.Tensor,   # unpack 鍚庣殑妯″瀷 latent锛堝拰 FlowEdit 杩斿洖鐨?x0_tar 璇箟涓€鑷达級
         device: torch.device,
     ) -> list:
-        # 取出 VAE 的 shift/scale
+        # 鍙栧嚭 VAE 鐨?shift/scale
         shift = float(getattr(self.vae.config, "shift_factor", 0.0))
         scale = float(getattr(self.vae.config, "scaling_factor", 1.0))
 
-        # 1) 先在 float32 里做“反缩放”
-        x = x0_tar.detach()
+        # 1) 鍏堝湪 float32 閲屽仛鈥滃弽缂╂斁鈥?        x = x0_tar.detach()
         if x.dtype != torch.float32:
             x = x.float()
         x = (x / scale) + shift
 
-        # 2) 解码前把 dtype 对齐到 VAE 权重的 dtype（通常是 fp16 或 bf16）
-        x = x.to(self.vae.dtype)
-        image_tar = self.vae.decode(x, return_dict=False)[0]    # Tensor[B,3,H,W] ∈ [-1,1]
+        # 2) 瑙ｇ爜鍓嶆妸 dtype 瀵归綈鍒?VAE 鏉冮噸鐨?dtype锛堥€氬父鏄?fp16 鎴?bf16锛?        x = x.to(self.vae.dtype)
+        image_tar = self.vae.decode(x, return_dict=False)[0]    # Tensor[B,3,H,W] 鈭?[-1,1]
         images = self.image_processor.postprocess(image_tar)    # List[PIL.Image]
         return images, image_tar
 
@@ -669,17 +660,16 @@ class Editsplat_Pipeline(FluxPipeline):
         device = image.device
         torch.manual_seed(seed)
 
-        # === FlowEdit 风格：先把像素图编码到 latent（注意：这一步只做 encode，不做我们自写的 pack/ids）===
-        # 你已有 encode_image(self, img, is_sample=False)，复用它
+        # === FlowEdit 椋庢牸锛氬厛鎶婂儚绱犲浘缂栫爜鍒?latent锛堟敞鎰忥細杩欎竴姝ュ彧鍋?encode锛屼笉鍋氭垜浠嚜鍐欑殑 pack/ids锛?==
+        # 浣犲凡鏈?encode_image(self, img, is_sample=False)锛屽鐢ㄥ畠
         x_src_lat = self.preprocess_like_flowedit(image, device=device, use_autocast=True)  # [1,C,H',W']          # [B, C_lat, H_lat, W_lat]
 
-        # === 用 latent 尺度推导“orig_height/width”，后面 prepare_latents/_unpack_latents 都用这个语义 ===
-        # FlowEdit 的做法：orig = H_lat * vae_scale_factor // 2
-        # （在当前 diffusers 的 FLUX 实现里，vae_scale_factor=1 → orig = H_lat//2 = H_tokens）
-        orig_height = x_src_lat.shape[2] * self.vae_scale_factor // 2
+        # === 鐢?latent 灏哄害鎺ㄥ鈥渙rig_height/width鈥濓紝鍚庨潰 prepare_latents/_unpack_latents 閮界敤杩欎釜璇箟 ===
+        # FlowEdit 鐨勫仛娉曪細orig = H_lat * vae_scale_factor // 2
+        # 锛堝湪褰撳墠 diffusers 鐨?FLUX 瀹炵幇閲岋紝vae_scale_factor=1 鈫?orig = H_lat//2 = H_tokens锛?        orig_height = x_src_lat.shape[2] * self.vae_scale_factor // 2
         orig_width  = x_src_lat.shape[3] * self.vae_scale_factor // 2
 
-        # === FlowEdit 一致：check_inputs 用 orig_height/width（注意：这里的 orig 是基于 latent 推导的）===
+        # === FlowEdit 涓€鑷达細check_inputs 鐢?orig_height/width锛堟敞鎰忥細杩欓噷鐨?orig 鏄熀浜?latent 鎺ㄥ鐨勶級===
         self.check_inputs(
             prompt=src_prompt,
             prompt_2=None,
@@ -689,7 +679,7 @@ class Editsplat_Pipeline(FluxPipeline):
             max_sequence_length=512,
         )
 
-        # === 关键：完全复用 pipeline 自带的 prepare_latents（把我们“已编码的 latent”作为 latents 传入）===
+        # === 鍏抽敭锛氬畬鍏ㄥ鐢?pipeline 鑷甫鐨?prepare_latents锛堟妸鎴戜滑鈥滃凡缂栫爜鐨?latent鈥濅綔涓?latents 浼犲叆锛?==
         num_channels_latents = self.transformer.config.in_channels // 4
         
 
@@ -701,21 +691,19 @@ class Editsplat_Pipeline(FluxPipeline):
             dtype=x_src_lat.dtype,
             device=x_src_lat.device,
             generator=None,
-            latents=x_src_lat,     # 🔴 把“已编码的 latent”交给 pipeline，内部会生成配套的 img_ids
+            latents=x_src_lat,     # 馃敶 鎶娾€滃凡缂栫爜鐨?latent鈥濅氦缁?pipeline锛屽唴閮ㄤ細鐢熸垚閰嶅鐨?img_ids
         )
 
 
-        # === 同样复用 pipeline 的 _pack_latents（以 latent H/W 打包，不要用像素 H/W）===
+        # === 鍚屾牱澶嶇敤 pipeline 鐨?_pack_latents锛堜互 latent H/W 鎵撳寘锛屼笉瑕佺敤鍍忕礌 H/W锛?==
         x_src_packed = self._pack_latents(
             x_src_lat,
             x_src_lat.shape[0],
             num_channels_latents,
             x_src_lat.shape[2],
             x_src_lat.shape[3],
-        )  # -> [B, N, C_tok]，其中 N 应等于 orig_height*orig_width（当前实现下）
-        
-        # 2) 生成时序（含 seq_len shift）
-        scheduler = self.scheduler
+        )  # -> [B, N, C_tok]锛屽叾涓?N 搴旂瓑浜?orig_height*orig_width锛堝綋鍓嶅疄鐜颁笅锛?        
+        # 2) 鐢熸垚鏃跺簭锛堝惈 seq_len shift锛?        scheduler = self.scheduler
         image_seq_len = x_src_packed.shape[1]
         mu = calculate_shift(
             image_seq_len,
@@ -733,8 +721,8 @@ class Editsplat_Pipeline(FluxPipeline):
                       self.transformer.config.in_channels // 4,
                       x_src_lat.shape[2], x_src_lat.shape[3])  # (B,C,H',W')
 
-        # 3) 文本编码 & guidance
-        self._guidance_scale = tar_guidance_scale  # 兼容 diffusers 的 “_guidance_scale” 行为
+        # 3) 鏂囨湰缂栫爜 & guidance
+        self._guidance_scale = tar_guidance_scale  # 鍏煎 diffusers 鐨?鈥淿guidance_scale鈥?琛屼负
         src_prompt_embeds, src_pooled_prompt_embeds, src_text_ids = self.encode_prompt(
             prompt=src_prompt, prompt_2=None, device=device
         )
@@ -742,7 +730,7 @@ class Editsplat_Pipeline(FluxPipeline):
             prompt=tar_prompt, prompt_2=None, device=device
         )
         if negative_prompt is not None:
-            # 这里按需要可把 negative 编到 embeds 并在 calc_v_flux 内组合；留空=无负提示
+            # 杩欓噷鎸夐渶瑕佸彲鎶?negative 缂栧埌 embeds 骞跺湪 calc_v_flux 鍐呯粍鍚堬紱鐣欑┖=鏃犺礋鎻愮ず
             pass
 
         if self.transformer.config.guidance_embeds:
@@ -752,20 +740,17 @@ class Editsplat_Pipeline(FluxPipeline):
             src_guidance = None
             tar_guidance = None
 
-        # 4) 初始化 ODE 状态
-        zt_edit = x_src_packed.clone()  # z_t 的当前估计
-        try:
+        # 4) 鍒濆鍖?ODE 鐘舵€?        zt_edit = x_src_packed.clone()  # z_t 鐨勫綋鍓嶄及璁?        try:
             model_dtype = next(self.transformer.parameters()).dtype
         except StopIteration:
-            # 保险：极少数场景下 module 里没参数（基本不会发生）
+            # 淇濋櫓锛氭瀬灏戞暟鍦烘櫙涓?module 閲屾病鍙傛暟锛堝熀鏈笉浼氬彂鐢燂級
             model_dtype = torch.bfloat16
 
         def _to_model_dtype(x):
             return x.to(model_dtype) if (x is not None and torch.is_floating_point(x)) else x
 
-        # 2) 将所有会送入 transformer 的浮点张量，统一到 model_dtype
-        #    注意：text_ids / latent_image_ids 是整数，把它们保留为 long 不要改
-        x_src_packed = _to_model_dtype(x_src_packed)
+        # 2) 灏嗘墍鏈変細閫佸叆 transformer 鐨勬诞鐐瑰紶閲忥紝缁熶竴鍒?model_dtype
+        #    娉ㄦ剰锛歵ext_ids / latent_image_ids 鏄暣鏁帮紝鎶婂畠浠繚鐣欎负 long 涓嶈鏀?        x_src_packed = _to_model_dtype(x_src_packed)
         zt_edit      = _to_model_dtype(zt_edit)
 
         src_prompt_embeds       = _to_model_dtype(src_prompt_embeds)
@@ -778,28 +763,25 @@ class Editsplat_Pipeline(FluxPipeline):
         if tar_guidance is not None:
             tar_guidance = tar_guidance.to(dtype=model_dtype)
 
-        # 5) 主循环：速度差 ODE（前段），SDEdit 风格收尾（后段）
+        # 5) 涓诲惊鐜細閫熷害宸?ODE锛堝墠娈碉級锛孲DEdit 椋庢牸鏀跺熬锛堝悗娈碉級
         for i, t in enumerate(timesteps):
 
-            # —— 跳过最早的高噪声步以稳态（可选；对齐 FlowEdit 的 n_max 逻辑）——
-            if diffusion_steps - i > n_max:
+            # 鈥斺€?璺宠繃鏈€鏃╃殑楂樺櫔澹版浠ョǔ鎬侊紙鍙€夛紱瀵归綈 FlowEdit 鐨?n_max 閫昏緫锛夆€斺€?            if diffusion_steps - i > n_max:
                 continue
 
             scheduler._init_step_index(t)
             t_i = scheduler.sigmas[scheduler.step_index]
             t_im1 = scheduler.sigmas[scheduler.step_index + 1] if i < len(timesteps) - 1 else t_i
 
-            # (A) ODE 段：仅速度差
-            if diffusion_steps - i > n_min:
+            # (A) ODE 娈碉細浠呴€熷害宸?            if diffusion_steps - i > n_min:
 
                 V_delta_avg = torch.zeros_like(x_src_packed)
                 for _ in range(n_avg):
-                    # 源分布前向点/目标对齐点
-                    fwd_noise = torch.randn_like(x_src_packed)
+                    # 婧愬垎甯冨墠鍚戠偣/鐩爣瀵归綈鐐?                    fwd_noise = torch.randn_like(x_src_packed)
                     zt_src = (1.0 - t_i) * x_src_packed + t_i * fwd_noise
                     zt_tar = zt_edit + zt_src - x_src_packed
 
-                    # 速度预测
+                    # 閫熷害棰勬祴
                     Vt_src = calc_v_flux(self,
                                          latents=zt_src,
                                          prompt_embeds=src_prompt_embeds,
@@ -819,30 +801,27 @@ class Editsplat_Pipeline(FluxPipeline):
 
                     V_delta_avg = V_delta_avg + (Vt_tar - Vt_src) / float(n_avg)
 
-                # —— 可选：Source fidelity 外力（低频拉回源结构），默认关闭（lambda_S=0）——
-                if lambda_S > 0.0:
+                # 鈥斺€?鍙€夛細Source fidelity 澶栧姏锛堜綆棰戞媺鍥炴簮缁撴瀯锛夛紝榛樿鍏抽棴锛坙ambda_S=0锛夆€斺€?                if lambda_S > 0.0:
                     F_S = _lowpass_like(x_src_packed - zt_edit, pack_shape)
                     if mask_S is not None:
-                        # mask_S: [B,1,H,W] -> 展平到 [B,L,1] 做门控
-                        B, _, H, W = mask_S.shape
+                        # mask_S: [B,1,H,W] -> 灞曞钩鍒?[B,L,1] 鍋氶棬鎺?                        B, _, H, W = mask_S.shape
                         m = F.interpolate(mask_S, size=(pack_shape[2], pack_shape[3]),
                                           mode="nearest")  # [B,1,H',W']
                         m = m.view(B, 1, pack_shape[2] * pack_shape[3]).transpose(1, 2).contiguous()  # [B,L,1]
                         F_S = F_S * m
                     V_delta_avg = V_delta_avg + lambda_S * F_S
 
-                # Euler 步进
+                # Euler 姝ヨ繘
                 zt_edit = zt_edit.to(torch.float32)
                 zt_edit = zt_edit + (t_im1 - t_i) * V_delta_avg.to(torch.float32)
                 zt_edit = zt_edit.to(V_delta_avg.dtype)
 
-            # (B) 收尾：仅目标速度（SDEdit-like）
-            else:
+            # (B) 鏀跺熬锛氫粎鐩爣閫熷害锛圫DEdit-like锛?            else:
                 if i == diffusion_steps - n_min:
-                    # 初始化收尾相位的 x_t
+                    # 鍒濆鍖栨敹灏剧浉浣嶇殑 x_t
                     fwd_noise = torch.randn_like(x_src_packed)
                     xt_src = scale_noise(scheduler, x_src_packed, t, noise=fwd_noise)
-                    xt_tar = zt_edit + xt_src - x_src_packed  # 对齐
+                    xt_tar = zt_edit + xt_src - x_src_packed  # 瀵归綈
 
                 Vt_tar = calc_v_flux(self,
                                      latents=xt_tar,
@@ -856,20 +835,19 @@ class Editsplat_Pipeline(FluxPipeline):
                 xt_tar = xt_tar + (t_im1 - t_i) * Vt_tar.to(torch.float32)
                 xt_tar = xt_tar.to(Vt_tar.dtype)
 
-        # 6) 输出（packed -> image latent -> 像素）
-        out_packed = zt_edit if n_min == 0 else xt_tar
+        # 6) 杈撳嚭锛坧acked -> image latent -> 鍍忕礌锛?        out_packed = zt_edit if n_min == 0 else xt_tar
 
-        # 关键：_unpack_latents 的 height/width 是 token 网格大小（H_tokens/W_tokens），不是像素
+        # 鍏抽敭锛歘unpack_latents 鐨?height/width 鏄?token 缃戞牸澶у皬锛圚_tokens/W_tokens锛夛紝涓嶆槸鍍忕礌
         out_latents = self._unpack_latents(out_packed, orig_height, orig_width, self.vae_scale_factor)
 
         images, image_tar = self.postprocess_like_flowedit(x0_tar=out_latents, device=device)
         return image_tar
 
-    # ------------------ (C) FlowEdit + MFG 一致性 ------------------
+    # ------------------ (C) FlowEdit + MFG 涓€鑷存€?------------------
 
     def edit_image_MFG(self,
-                    image: torch.Tensor,                 # [B,3,H,W] 源图
-                    MF_image_cond: torch.Tensor,         # [B,3,H,W] 融合视图图像
+                    image: torch.Tensor,                 # [B,3,H,W] 婧愬浘
+                    MF_image_cond: torch.Tensor,         # [B,3,H,W] 铻嶅悎瑙嗗浘鍥惧儚
                     src_prompt: str,
                     tar_prompt: str,
                     negative_prompt: Optional[torch.Tensor] = None,
@@ -880,8 +858,7 @@ class Editsplat_Pipeline(FluxPipeline):
                     n_min: int = 0,
                     n_max: int = 24,
                     seed: int = 10,
-                    # 一致性外力
-                    lambda_S: float = 0.0,
+                    # 涓€鑷存€у鍔?                    lambda_S: float = 0.0,
                     lambda_M: float = 0.0,
                     mask_S: Optional[torch.Tensor] = None,
                     mask_M: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -906,7 +883,7 @@ class Editsplat_Pipeline(FluxPipeline):
         device = image.device
         torch.manual_seed(seed)
 
-        # === 源图：FlowEdit 路线的预处理/编码 ===
+        # === 婧愬浘锛欶lowEdit 璺嚎鐨勯澶勭悊/缂栫爜 ===
         x_src_lat = self.preprocess_like_flowedit(image, device=device, use_autocast=True)  # [B,C_lat,H',W']
         orig_height = x_src_lat.shape[2] * self.vae_scale_factor // 2
         orig_width  = x_src_lat.shape[3] * self.vae_scale_factor // 2
@@ -922,7 +899,7 @@ class Editsplat_Pipeline(FluxPipeline):
 
         num_channels_latents = self.transformer.config.in_channels // 4
 
-        # 将“我们已编码好的 latent”交给 pipeline，让其生成匹配的 image_ids
+        # 灏嗏€滄垜浠凡缂栫爜濂界殑 latent鈥濅氦缁?pipeline锛岃鍏剁敓鎴愬尮閰嶇殑 image_ids
         x_src_lat, latent_src_image_ids = self.prepare_latents(
             batch_size=x_src_lat.shape[0],
             num_channels_latents=num_channels_latents,
@@ -939,9 +916,9 @@ class Editsplat_Pipeline(FluxPipeline):
             num_channels_latents,
             x_src_lat.shape[2],
             x_src_lat.shape[3],
-        )  # [B, L, C_tok]，L ≈ H_tokens*W_tokens
+        )  # [B, L, C_tok]锛孡 鈮?H_tokens*W_tokens
 
-        # === 融合视图：同样路线（但前传时仍复用“源图 image_ids”）===
+        # === 铻嶅悎瑙嗗浘锛氬悓鏍疯矾绾匡紙浣嗗墠浼犳椂浠嶅鐢ㄢ€滄簮鍥?image_ids鈥濓級===
         x_mf_lat = self.preprocess_like_flowedit(MF_image_cond, device=device, use_autocast=True)
         x_mf_lat, _latent_mf_image_ids = self.prepare_latents(
             batch_size=x_mf_lat.shape[0],
@@ -961,7 +938,7 @@ class Editsplat_Pipeline(FluxPipeline):
             x_mf_lat.shape[3],
         )
 
-        # === 时间步（含序列长度 shift）===
+        # === 鏃堕棿姝ワ紙鍚簭鍒楅暱搴?shift锛?==
         scheduler = self.scheduler
         image_seq_len = x_src_packed.shape[1]
         mu = calculate_shift(
@@ -980,9 +957,8 @@ class Editsplat_Pipeline(FluxPipeline):
                     self.transformer.config.in_channels // 4,
                     x_src_lat.shape[2], x_src_lat.shape[3])  # (B,C,H_tokens,W_tokens)
 
-        # === 文本编码 & guidance ===
-        self._guidance_scale = tar_guidance_scale  # 与 diffusers 约定保持一致
-        src_prompt_embeds, src_pooled_prompt_embeds, src_text_ids = self.encode_prompt(
+        # === 鏂囨湰缂栫爜 & guidance ===
+        self._guidance_scale = tar_guidance_scale  # 涓?diffusers 绾﹀畾淇濇寔涓€鑷?        src_prompt_embeds, src_pooled_prompt_embeds, src_text_ids = self.encode_prompt(
             prompt=src_prompt, prompt_2=None, device=device
         )
         tar_prompt_embeds, tar_pooled_prompt_embeds, tar_text_ids = self.encode_prompt(
@@ -995,7 +971,7 @@ class Editsplat_Pipeline(FluxPipeline):
             src_guidance = None
             tar_guidance = None
 
-        # === dtype 统一：与 edit_image 同步 ===
+        # === dtype 缁熶竴锛氫笌 edit_image 鍚屾 ===
         try:
             model_dtype = next(self.transformer.parameters()).dtype
         except StopIteration:
@@ -1018,20 +994,17 @@ class Editsplat_Pipeline(FluxPipeline):
         if tar_guidance is not None:
             tar_guidance = tar_guidance.to(dtype=model_dtype)
 
-        # === 主循环 ===
-        xt_tar = None  # 若进入尾段会被赋值
-        for i, t in enumerate(timesteps):
+        # === 涓诲惊鐜?===
+        xt_tar = None  # 鑻ヨ繘鍏ュ熬娈典細琚祴鍊?        for i, t in enumerate(timesteps):
 
-            # 跳过最早的高噪声步（n_max 逻辑）
-            if diffusion_steps - i > n_max:
+            # 璺宠繃鏈€鏃╃殑楂樺櫔澹版锛坣_max 閫昏緫锛?            if diffusion_steps - i > n_max:
                 continue
 
             scheduler._init_step_index(t)
             t_i = scheduler.sigmas[scheduler.step_index]
             t_im1 = scheduler.sigmas[scheduler.step_index + 1] if i < len(timesteps) - 1 else t_i
 
-            # (A) ODE 段：速度差 + 可选外力
-            if diffusion_steps - i > n_min:
+            # (A) ODE 娈碉細閫熷害宸?+ 鍙€夊鍔?            if diffusion_steps - i > n_min:
 
                 V_delta_avg = torch.zeros_like(x_src_packed)
                 for _ in range(n_avg):
@@ -1056,12 +1029,11 @@ class Editsplat_Pipeline(FluxPipeline):
                         pooled_prompt_embeds=tar_pooled_prompt_embeds,
                         guidance=tar_guidance,
                         text_ids=tar_text_ids,
-                        latent_image_ids=latent_src_image_ids,  # 复用源图的 ids（FlowEdit 做法）
-                        t=t,
+                        latent_image_ids=latent_src_image_ids,  # 澶嶇敤婧愬浘鐨?ids锛團lowEdit 鍋氭硶锛?                        t=t,
                     )
                     V_delta_avg = V_delta_avg + (Vt_tar - Vt_src) / float(n_avg)
 
-                # 源外观/结构保持（可选）
+                # 婧愬瑙?缁撴瀯淇濇寔锛堝彲閫夛級
                 if lambda_S > 0.0:
                     F_S = _lowpass_like(x_src_packed - zt_edit, pack_shape)
                     if mask_S is not None:
@@ -1071,7 +1043,7 @@ class Editsplat_Pipeline(FluxPipeline):
                         F_S = F_S * m
                     V_delta_avg = V_delta_avg + lambda_S * F_S
 
-                # MFG 多视图一致性（可选）
+                # MFG 澶氳鍥句竴鑷存€э紙鍙€夛級
                 if lambda_M > 0.0:
                     F_M = _lowpass_like(x_mf_packed - zt_edit, pack_shape)
                     if mask_M is not None:
@@ -1081,13 +1053,11 @@ class Editsplat_Pipeline(FluxPipeline):
                         F_M = F_M * m
                     V_delta_avg = V_delta_avg + lambda_M * F_M
 
-                # Euler 更新：float32 计算后再转回，避免数值不稳
-                zt_edit = zt_edit.to(torch.float32)
+                # Euler 鏇存柊锛歠loat32 璁＄畻鍚庡啀杞洖锛岄伩鍏嶆暟鍊间笉绋?                zt_edit = zt_edit.to(torch.float32)
                 zt_edit = zt_edit + (t_im1 - t_i) * V_delta_avg.to(torch.float32)
                 zt_edit = zt_edit.to(V_delta_avg.dtype)
 
-            # (B) 尾段：仅用目标速度作 SDEdit 式细化
-            else:
+            # (B) 灏炬锛氫粎鐢ㄧ洰鏍囬€熷害浣?SDEdit 寮忕粏鍖?            else:
                 if i == diffusion_steps - n_min:
                     fwd_noise = torch.randn_like(x_src_packed)
                     xt_src = scale_noise(scheduler, x_src_packed, t, noise=fwd_noise)
@@ -1100,7 +1070,7 @@ class Editsplat_Pipeline(FluxPipeline):
                     pooled_prompt_embeds=tar_pooled_prompt_embeds,
                     guidance=tar_guidance,
                     text_ids=tar_text_ids,
-                    latent_image_ids=latent_src_image_ids,  # 仍然用源 ids
+                    latent_image_ids=latent_src_image_ids,  # 浠嶇劧鐢ㄦ簮 ids
                     t=t,
                 )
                 xt_tar = xt_tar.to(torch.float32)
@@ -1109,27 +1079,23 @@ class Editsplat_Pipeline(FluxPipeline):
 
         out_packed = zt_edit if n_min == 0 else xt_tar
 
-        # 解包：这里的 H/W 必须是 token 网格尺寸（不是像素）
+        # 瑙ｅ寘锛氳繖閲岀殑 H/W 蹇呴』鏄?token 缃戞牸灏哄锛堜笉鏄儚绱狅級
         out_latents = self._unpack_latents(out_packed, orig_height, orig_width, self.vae_scale_factor)
 
-        # 后处理：与 FlowEdit 路径一致（已验证更稳、更不易黑图）
-        images, image_tar = self.postprocess_like_flowedit(x0_tar=out_latents, device=device)
+        # 鍚庡鐞嗭細涓?FlowEdit 璺緞涓€鑷达紙宸查獙璇佹洿绋炽€佹洿涓嶆槗榛戝浘锛?        images, image_tar = self.postprocess_like_flowedit(x0_tar=out_latents, device=device)
         return image_tar
     
-    ############ Score Distillation Sampling 相关 ############
+    ############ Score Distillation Sampling 鐩稿叧 ############
     def set_sds_params(self, sdp):
         """
-        把解析好的 ScoreDistillParams 实例/字典塞进 pipeline，便于在训练循环里直接用。
-        """
+        鎶婅В鏋愬ソ鐨?ScoreDistillParams 瀹炰緥/瀛楀吀濉炶繘 pipeline锛屼究浜庡湪璁粌寰幆閲岀洿鎺ョ敤銆?        """
         self._sds_cfg = sdp
-        self._sds_cache = None  # 会在第一次调用时构建
+        self._sds_cache = None  # 浼氬湪绗竴娆¤皟鐢ㄦ椂鏋勫缓
 
     @torch.no_grad()
     def _build_sds_prompt_cache(self, src_prompt: str, tar_prompt: str, device: torch.device):
         """
-        仅在首次调用时编码一次文本，把需要的 embedding/guidance 常量缓存起来。
-        - 注意：FLUX.1-dev 是 guidance-distilled，diffusers<=0.30 下 transformer.config.guidance_embeds 为 True。
-        """
+        浠呭湪棣栨璋冪敤鏃剁紪鐮佷竴娆℃枃鏈紝鎶婇渶瑕佺殑 embedding/guidance 甯搁噺缂撳瓨璧锋潵銆?        - 娉ㄦ剰锛欶LUX.1-dev 鏄?guidance-distilled锛宒iffusers<=0.30 涓?transformer.config.guidance_embeds 涓?True銆?        """
         src_embeds, src_pooled, src_ids = self.encode_prompt(prompt=src_prompt, prompt_2=None, device=device)
         tar_embeds, tar_pooled, tar_ids = self.encode_prompt(prompt=tar_prompt, prompt_2=None, device=device)
 
@@ -1147,11 +1113,10 @@ class Editsplat_Pipeline(FluxPipeline):
 
     def _resize_for_flux(self, img_bchw: torch.Tensor, side: int) -> torch.Tensor:
         """
-        把 [-1,1] 或 [0,1] 的张量统一到 [0,1]，再 resize 到 side×side（保持可微插值），B=1。
-        """
+        鎶?[-1,1] 鎴?[0,1] 鐨勫紶閲忕粺涓€鍒?[0,1]锛屽啀 resize 鍒?side脳side锛堜繚鎸佸彲寰彃鍊硷級锛孊=1銆?        """
         assert img_bchw.ndim == 4 and img_bchw.shape[0] == 1
         x = img_bchw
-        if x.min() < 0.0:     # 从渲染器回来通常在 [-1,1]
+        if x.min() < 0.0:     # 浠庢覆鏌撳櫒鍥炴潵閫氬父鍦?[-1,1]
             x = (x + 1.0) * 0.5
         if (x.shape[-2] != side) or (x.shape[-1] != side):
             x = F.interpolate(x, size=(side, side), mode="bilinear", align_corners=True)
@@ -1159,24 +1124,20 @@ class Editsplat_Pipeline(FluxPipeline):
 
     def _img_to_packed_latents_and_ids(self, image_bchw_01: torch.Tensor, device: torch.device):
         """
-        复用你已有的 FlowEdit 前处理 → VAE 编码 → prepare_latents → _pack_latents
-        返回：
-        x_lat      : [1, C, H', W'] （模型 latent）
-        img_ids    : [L] long，FLUX 需要的 image token ids
-        x_packed   : [1, L, C_tok] 打包后的 token
-        H_tokens,W_tokens: token 网格（等于 orig_height/width）
-        timesteps_builder: 一个闭包，给你 image_seq_len 后能生成 (mu, timesteps)
+        澶嶇敤浣犲凡鏈夌殑 FlowEdit 鍓嶅鐞?鈫?VAE 缂栫爜 鈫?prepare_latents 鈫?_pack_latents
+        杩斿洖锛?        x_lat      : [1, C, H', W'] 锛堟ā鍨?latent锛?        img_ids    : [L] long锛孎LUX 闇€瑕佺殑 image token ids
+        x_packed   : [1, L, C_tok] 鎵撳寘鍚庣殑 token
+        H_tokens,W_tokens: token 缃戞牸锛堢瓑浜?orig_height/width锛?        timesteps_builder: 涓€涓棴鍖咃紝缁欎綘 image_seq_len 鍚庤兘鐢熸垚 (mu, timesteps)
         """
         device = image_bchw_01.device
         # VAE latent
         x_lat = self.preprocess_like_flowedit(image_bchw_01, device=device, use_autocast=True)  # [1,C,H',W']
 
-        # 由 latent 尺度反推 token 尺度（和你 edit_image 里一致）
+        # 鐢?latent 灏哄害鍙嶆帹 token 灏哄害锛堝拰浣?edit_image 閲屼竴鑷达級
         orig_h = x_lat.shape[2] * self.vae_scale_factor // 2
         orig_w = x_lat.shape[3] * self.vae_scale_factor // 2
 
-        # 走标准的 check_inputs / prepare_latents（把我们自己的 latent 作为 latents 传入）
-        self.check_inputs(
+        # 璧版爣鍑嗙殑 check_inputs / prepare_latents锛堟妸鎴戜滑鑷繁鐨?latent 浣滀负 latents 浼犲叆锛?        self.check_inputs(
             prompt="(cache only)", prompt_2=None, height=orig_h, width=orig_w,
             callback_on_step_end_tensor_inputs=None, max_sequence_length=512,
         )
@@ -1186,14 +1147,13 @@ class Editsplat_Pipeline(FluxPipeline):
             height=orig_h, width=orig_w, dtype=x_lat.dtype, device=device,
             generator=None, latents=x_lat,
         )
-        # 打包
+        # 鎵撳寘
         x_packed = self._pack_latents(
             x_lat, x_lat.shape[0], num_channels_latents, x_lat.shape[2], x_lat.shape[3]
         )
         H_tokens, W_tokens = orig_h, orig_w
 
-        # 构造和你 edit_image 完全一致的时序生成器（含 seq_len shift）
-        def build_timesteps(image_seq_len: int, diffusion_steps: int):
+        # 鏋勯€犲拰浣?edit_image 瀹屽叏涓€鑷寸殑鏃跺簭鐢熸垚鍣紙鍚?seq_len shift锛?        def build_timesteps(image_seq_len: int, diffusion_steps: int):
             scheduler = self.scheduler
             mu = calculate_shift(
                 image_seq_len,
@@ -1210,34 +1170,32 @@ class Editsplat_Pipeline(FluxPipeline):
 
         return x_lat, img_ids, x_packed, H_tokens, W_tokens, build_timesteps
 
-    # ========= 2) 基于 FlowEdit / FlowAlign / PDS 的 3DGS 用“分数蒸馏”损失 =========
+    # ========= 2) 鍩轰簬 FlowEdit / FlowAlign / PDS 鐨?3DGS 鐢ㄢ€滃垎鏁拌捀棣忊€濇崯澶?=========
 
     def compute_flow_sds_loss(
         self,
-        rendered_bchw: torch.Tensor,      # [1,3,H,W]，来自 3DGS 的当前渲染（需要反传）
-        src_bchw: torch.Tensor,           # [1,3,H,W]，同视角 GT（身份保持用）
-        src_prompt: str,
+        rendered_bchw: torch.Tensor,      # [1,3,H,W]锛屾潵鑷?3DGS 鐨勫綋鍓嶆覆鏌擄紙闇€瑕佸弽浼狅級
+        src_bchw: torch.Tensor,           # [1,3,H,W]锛屽悓瑙嗚 GT锛堣韩浠戒繚鎸佺敤锛?        src_prompt: str,
         tar_prompt: str,
         sdp,
-        mask_b1hw: Optional[torch.Tensor] = None,  # LangSAM mask，可为 [H,W]/[1,H,W]/[1,1,H,W]
+        mask_b1hw: Optional[torch.Tensor] = None,  # LangSAM mask锛屽彲涓?[H,W]/[1,H,W]/[1,1,H,W]
     ):
         device = rendered_bchw.device
-        # 组态 & 缓存
+        # 缁勬€?& 缂撳瓨
         self._sds_cfg = sdp if getattr(self, "_sds_cfg", None) is None else self._sds_cfg
         if self._sds_cache is None:
             self._build_sds_prompt_cache(src_prompt, tar_prompt, device)
 
-        # 统一分辨率（仅用于进入 VAE/FLUX 的路径；不改变原渲染图 tensor）
-        side = int(getattr(self._sds_cfg, "resize", 512))
+        # 缁熶竴鍒嗚鲸鐜囷紙浠呯敤浜庤繘鍏?VAE/FLUX 鐨勮矾寰勶紱涓嶆敼鍙樺師娓叉煋鍥?tensor锛?        side = int(getattr(self._sds_cfg, "resize", 512))
         img_tar_01 = self._resize_for_flux(rendered_bchw, side)
         img_src_01 = self._resize_for_flux(src_bchw, side)
 
-        # 编码 → 打包 → 得到 token 级特征与 ids
+        # 缂栫爜 鈫?鎵撳寘 鈫?寰楀埌 token 绾х壒寰佷笌 ids
         x_lat_tar, img_ids_tar, x_tar_packed, Htok, Wtok, build_ts = self._img_to_packed_latents_and_ids(img_tar_01, device)
         x_lat_src, _img_ids_src, x_src_packed, _, _, _ = self._img_to_packed_latents_and_ids(img_src_01, device)
-        latent_image_ids = img_ids_tar  # 对应 token 的 ids
+        latent_image_ids = img_ids_tar  # 瀵瑰簲 token 鐨?ids
 
-        # 构造时间步（保持与 FlowEdit 的 shift / sigmas 逻辑一致）
+        # 鏋勯€犳椂闂存锛堜繚鎸佷笌 FlowEdit 鐨?shift / sigmas 閫昏緫涓€鑷达級
         scheduler, mu, timesteps, T = build_ts(x_tar_packed.shape[1], int(self._sds_cfg.timesteps))
         n_min = int(self._sds_cfg.n_min); n_max = int(self._sds_cfg.n_max)
         valid_idx = list(range(max(0, T - n_max), max(1, T - n_min)))
@@ -1247,8 +1205,7 @@ class Editsplat_Pipeline(FluxPipeline):
         t_i = scheduler.sigmas[scheduler.step_index]
         t_ip1 = scheduler.sigmas[scheduler.step_index + 1] if t_idx < len(timesteps) - 1 else t_i
 
-        # 共享噪声（PDS/DDS）
-        fwd_noise = torch.randn_like(x_tar_packed)
+        # 鍏变韩鍣０锛圥DS/DDS锛?        fwd_noise = torch.randn_like(x_tar_packed)
         xt_tar = (1.0 - t_i) * x_tar_packed + t_i * fwd_noise
         xt_src = (1.0 - t_i) * x_src_packed + t_i * fwd_noise
 
@@ -1277,43 +1234,42 @@ class Editsplat_Pipeline(FluxPipeline):
         )
         dV = (V_tar - V_src)
 
-        # 时间权重
+        # 鏃堕棿鏉冮噸
         if str(getattr(self._sds_cfg, "time_weight", "one")) == "poly":
             wt = float((1.0 - float(t_i)) ** 2)
         else:
             wt = 1.0
         wt = torch.tensor(wt, device=device, dtype=xt_tar.dtype)
 
-        # ---- LangSAM 掩码：仅在损失里做 gating（不改变前向）----
+        # ---- LangSAM 鎺╃爜锛氫粎鍦ㄦ崯澶遍噷鍋?gating锛堜笉鏀瑰彉鍓嶅悜锛?---
         m_tok = None
         if mask_b1hw is not None:
             m = mask_b1hw
-            # 归一形状 -> [1,1,H,W]
+            # 褰掍竴褰㈢姸 -> [1,1,H,W]
             if m.ndim == 2:
                 m = m.unsqueeze(0).unsqueeze(0)
             elif m.ndim == 3:
-                m = m.unsqueeze(0) if m.shape[0] != 1 else m.unsqueeze(1)  # [1,H,W] 或 [C,H,W]→尽量变 [1,1,H,W]
+                m = m.unsqueeze(0) if m.shape[0] != 1 else m.unsqueeze(1)  # [1,H,W] 鎴?[C,H,W]鈫掑敖閲忓彉 [1,1,H,W]
                 if m.ndim == 3:
                     m = m.unsqueeze(1)
             m = m.to(device=device, dtype=xt_tar.dtype)
 
-            # 可选软背景权
-            bg = float(getattr(self._sds_cfg, "mask_bg", 0.0))
+            # 鍙€夎蒋鑳屾櫙鏉?            bg = float(getattr(self._sds_cfg, "mask_bg", 0.0))
             if bg > 0.0:
                 hard = (m > 0.5).to(m.dtype)
                 m = hard + bg * (1.0 - hard)
 
-            # 映射到 token 网格并展平为 [1, L, 1]
+            # 鏄犲皠鍒?token 缃戞牸骞跺睍骞充负 [1, L, 1]
             m = F.interpolate(m, size=(Htok, Wtok), mode="nearest")
             m_tok = m.view(1, 1, Htok * Wtok).transpose(1, 2).contiguous()
 
-        # --- 蒸馏项（SDS/DDS 的 stop-grad 在线性化到 flow 速度差）---
+        # --- 钂搁椤癸紙SDS/DDS 鐨?stop-grad 鍦ㄧ嚎鎬у寲鍒?flow 閫熷害宸級---
         if m_tok is None:
             L_edit = wt * (dV.detach() * xt_tar).mean()
         else:
             L_edit = wt * ( (dV.detach() * xt_tar) * m_tok ).sum() / (m_tok.sum() * xt_tar.shape[-1] + 1e-6)
 
-        # --- Tweedie 身份保持（FlowAlign F.2）：x0_hat = x_t - t * V(·) ---
+        # --- Tweedie 韬唤淇濇寔锛團lowAlign F.2锛夛細x0_hat = x_t - t * V(路) ---
         x0_tar = xt_tar - t_i * V_tar
         x0_src = xt_src - t_i * V_src
         if m_tok is None:
@@ -1351,7 +1307,7 @@ class Editsplat_Pipeline(FluxPipeline):
         # self.weights_dtype=torch.bfloat16
         # ip2p_pipe.unet = ip2p_pipe.unet.to(self.vae.dtype)
 
-        # encode target prompt 这部分不用encode，直接输入 TODO
+        # encode target prompt 杩欓儴鍒嗕笉鐢╡ncode锛岀洿鎺ヨ緭鍏?TODO
         # trg_prompt_embeds = self._encode_prompt(
         #     ed.target_prompt, device=self._execution_device, num_images_per_prompt=1, do_classifier_free_guidance=True, negative_prompt=""
         # )
@@ -1458,7 +1414,7 @@ class Editsplat_Pipeline(FluxPipeline):
 
                 if gt_image.shape[2] != 512 or gt_image.shape[3] != 512:
                     gt_image = F.interpolate(gt_image, size=(512, 512), mode='bilinear', align_corners=True)
-                edited_image = self.edit_image( # torch.Size([1, 3, 512, 512]) TODO 这部分输入改了很多，注意这个
+                edited_image = self.edit_image( # torch.Size([1, 3, 512, 512]) TODO 杩欓儴鍒嗚緭鍏ユ敼浜嗗緢澶氾紝娉ㄦ剰杩欎釜
                 image=gt_image,
                 src_prompt=ed.flow_src_prompt,
                 tar_prompt=ed.flow_tar_prompt,
@@ -1655,7 +1611,7 @@ class Editsplat_Pipeline(FluxPipeline):
             
             
             # MFG (Multi-View Fusion Guidance)
-            edited_image_MFG = self.edit_image_MFG( # edited_image_MFG -> torch.Size([1, 3, 512, 512]) TODO 输入改了很多
+            edited_image_MFG = self.edit_image_MFG( # edited_image_MFG -> torch.Size([1, 3, 512, 512]) TODO 杈撳叆鏀逛簡寰堝
                 image=gt_image,
                 MF_image_cond=MF_image,
                 src_prompt=ed.flow_src_prompt,
@@ -1676,7 +1632,7 @@ class Editsplat_Pipeline(FluxPipeline):
             
             edited_image_MFG = F.interpolate(edited_image_MFG, size=(image_height, image_width), mode='bilinear', align_corners=True).to(torch.float32)
             # ------------------ save attention map ------------------
-            # attention map的调用要改，下面都要仔细看一看 TODO
+            # attention map鐨勮皟鐢ㄨ鏀癸紝涓嬮潰閮借浠旂粏鐪嬩竴鐪?TODO
             # save mfg edited images attention map
             # trg_attention_map = get_all_attention_maps(ip2p_pipe.unet)
             # trg_attention_map_by_tokens = seperate_attention_maps_by_tokens(ip2p_pipe.unet, trg_attention_map, ip2p_pipe.tokenizer, ed.target_prompt)
@@ -1689,7 +1645,7 @@ class Editsplat_Pipeline(FluxPipeline):
             #     image_height=image_height, image_width=image_width
             # )
             
-            # TODO !! LangSAM替代 
+            # TODO !! LangSAM鏇夸唬 
             # gt_img (1,3,h,w) -> (3,h,w)
             alter_np_gt_img = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
             alter_np_gt_img_pil = Image.fromarray((alter_np_gt_img * 255).astype(np.uint8))
@@ -1915,4 +1871,67 @@ def set_seed(seed):
 if __name__ == "__main__":
     parser = ArgumentParser(description="Editing Training script parameters")
 
-    # 组装参
+    # 组装参数组（注意：这里仅实例化，真正的值来自命令行）
+    lp = ModelParams(parser)
+    op = OptimizationParams(parser)
+    pp = PipelineParams(parser)
+    ed = EditingParams(parser)
+    sdp = ScoreDistillParams(parser)
+
+    args = parser.parse_args(sys.argv[1:])
+
+    set_seed(0)
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    pipeline = Editsplat_Pipeline.from_pretrained(
+        "black-forest-labs/FLUX.1-dev",
+        torch_dtype=dtype,
+        use_safetensors=True,
+        token=os.environ.get("HF_TOKEN", None),
+    ).to(device)
+
+    # 取出每个参数组
+    dataset = lp.extract(args)
+    opt = op.extract(args)
+    pipe = pp.extract(args)
+    edp = ed.extract(args)
+    sdp = sdp.extract(args)
+    pipeline.configure_edit_backend(edp)
+
+    os.makedirs(dataset.model_path, exist_ok=True)
+    with open(os.path.join(dataset.model_path, 'args.json'), 'w') as f:
+        json.dump(vars(args), f, indent=2)
+    shutil.copyfile(__file__, os.path.join(dataset.model_path, 'train_frozen.py'))
+
+    _ = pipeline(
+        dataset=dataset,
+        opt=opt,
+        pipe=pipe,
+        ed=edp,
+        sdp=sdp,
+    )
+
+    print("\nEditing complete.")
+'''
+python run_editing_flow.py \
+    -s ./dataset/dataset/face \
+    -m output/face_to_hulk \
+    --source_checkpoint ./dataset/pretrained/face/chkpnt30000.pth \
+    --flow_model_key sd35-large \
+    --flow_method flowedit \
+    --object_prompt "face" \
+    --target_prompt "Make his face resemble that of a marble sculpture" \
+    --sampling_prompt "a photo of a joker" \
+    --target_mask_prompt "face" \
+    --flow_src_prompt "a photo of a young man with wavy light-brown hair, wearing a gray zip sweater." \
+    --flow_tar_prompt "a photo of a Hulk with red hair, wearing a gray zip sweater." \
+    --flow_steps 28 \
+    --flow_n_avg 1 \
+    --flow_src_guidance_scale 1.5 \
+    --flow_tar_guidance_scale 10.5 \
+    --flow_n_min 0 \
+    --flow_n_max 18 \
+    --flow_seed 10 \
+    --filtering_ratio 0.65 
+'''
