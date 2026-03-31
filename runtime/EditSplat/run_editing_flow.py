@@ -743,16 +743,18 @@ class Editsplat_Pipeline(FluxPipeline):
             src_guidance = None
             tar_guidance = None
 
-        # 4) 鍒濆鍖?ODE 鐘舵€?        zt_edit = x_src_packed.clone()  # z_t 鐨勫綋鍓嶄及璁?        try:
+        # 4) 初始化 ODE 状态
+        zt_edit = x_src_packed.clone()  # z_t 的当前估计
+        try:
             model_dtype = next(self.transformer.parameters()).dtype
         except StopIteration:
-            # 淇濋櫓锛氭瀬灏戞暟鍦烘櫙涓?module 閲屾病鍙傛暟锛堝熀鏈笉浼氬彂鐢燂級
+            # 保险：极少数场景里 module 里没参数（基本不会发生）
             model_dtype = torch.bfloat16
 
         def _to_model_dtype(x):
             return x.to(model_dtype) if (x is not None and torch.is_floating_point(x)) else x
 
-        # 2) 灏嗘墍鏈変細閫佸叆 transformer 鐨勬诞鐐瑰紶閲忥紝缁熶竴鍒?model_dtype
+        # 5) 将所有会送入 transformer 的浮点张量，统一到 model_dtype
         #    娉ㄦ剰锛歵ext_ids / latent_image_ids 鏄暣鏁帮紝鎶婂畠浠繚鐣欎负 long 涓嶈鏀?        x_src_packed = _to_model_dtype(x_src_packed)
         zt_edit      = _to_model_dtype(zt_edit)
 
