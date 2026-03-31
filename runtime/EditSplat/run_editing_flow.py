@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Subset, Dataset
 from torchvision.transforms import ToPILImage
-from diffusers import StableDiffusionPipeline, DDIMScheduler
+from diffusers import DiffusionPipeline, StableDiffusionPipeline, DDIMScheduler
 from diffusers import FluxPipeline, DDIMScheduler
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import retrieve_timesteps
@@ -523,6 +523,7 @@ class Editsplat_Pipeline(FluxPipeline):
     @classmethod
     def build_external_backend_only(cls):
         pipe = object.__new__(cls)
+        DiffusionPipeline.__init__(pipe)
         pipe._external_backend_only = True
         pipe._external_edit_backend = None
         pipe.transformer = None
