@@ -768,10 +768,11 @@ class Editsplat_Pipeline(FluxPipeline):
         if tar_guidance is not None:
             tar_guidance = tar_guidance.to(dtype=model_dtype)
 
-        # 5) 涓诲惊鐜細閫熷害宸?ODE锛堝墠娈碉級锛孲DEdit 椋庢牸鏀跺熬锛堝悗娈碉級
+        # 5) 主循环：速度差 ODE（前段），SDEdit 风格收尾（后段）
         for i, t in enumerate(timesteps):
 
-            # 鈥斺€?璺宠繃鏈€鏃╃殑楂樺櫔澹版浠ョǔ鎬侊紙鍙€夛紱瀵归綈 FlowEdit 鐨?n_max 閫昏緫锛夆€斺€?            if diffusion_steps - i > n_max:
+            # —— 跳过最早的高噪声步以稳态（可选；对齐 FlowEdit 的 n_max 逻辑）——
+            if diffusion_steps - i > n_max:
                 continue
 
             scheduler._init_step_index(t)
