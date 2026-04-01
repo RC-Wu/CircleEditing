@@ -1,6 +1,7 @@
 ﻿import sys
 import os
 import random
+import contextlib
 from argparse import ArgumentParser
 import json
 import shutil
@@ -34,21 +35,14 @@ except Exception:
 if "EDITSPLAT_HF_HOME" in os.environ:
     os.environ["HF_HOME"] = os.environ["EDITSPLAT_HF_HOME"]
 else:
-    os.environ.setdefault("HF_HOME", "/dev_vepfs/rc_wu/cache/hf_home")
+    os.environ.setdefault("HF_HOME", "/dev_vepfs/rc_wu/cache/hf_home_dev02")
 
 if "EDITSPLAT_TORCH_HOME" in os.environ:
     os.environ["TORCH_HOME"] = os.environ["EDITSPLAT_TORCH_HOME"]
 else:
     os.environ.setdefault("TORCH_HOME", "/dev_vepfs/rc_wu/cache/torch")
 
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
-
-try:
-    from lang_sam import LangSAM
-except Exception:
-    LangSAM = None
 
 from scene import Scene, GaussianModel
 from gaussian_renderer import render
@@ -61,8 +55,9 @@ from utils.loss_utils import l1_loss
 from utils.rgbd_warping import reproject_rgbd, reprojected2img
 from utils.camera_proximity_utils import find_nearby_camera
 from utils.flow_utils import scale_noise, calculate_shift, calc_v_flux
-from utils.semantic_guidance import build_semantic_guidance, expand_loss_guidance_mask
+from utils.semantic_guidance import build_semantic_guidance, expand_loss_guidance_mask, normalize_gaussian_support_mask
 from utils.runtime_bootstrap import should_bootstrap_external_backend_only
+from utils.sam3_support import iter_mask_prompts, parse_hf_token_line
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -119,8 +114,8 @@ def _load_reward_model():
 
 
 def _load_langsam():
-    class _LangSAMStub:
-        backend_name = "stub"
+    class _Sam3FullMaskStub:
+        backend_name = "sam3_stub"
 
         def predict(self, image_pil, text_prompt):
             del text_prompt
@@ -128,101 +123,90 @@ def _load_langsam():
             mask = torch.ones((1, h, w), dtype=torch.float32)
             return mask, None, None, None
 
-    backend = os.environ.get("EDITSPLAT_MASK_BACKEND", "langsam").strip().lower()
+    class _Sam3MaskAdapter:
+        backend_name = "sam3"
+
+        def __init__(self):
+            from sam3.model.sam3_image_processor import Sam3Processor
+            from sam3.model_builder import build_sam3_image_model
+
+            hf_home = Path(os.environ.get("EDITSPLAT_HF_HOME") or os.environ.get("HF_HOME") or "/dev_vepfs/rc_wu/cache/hf_home_dev02")
+            token_file = Path(os.environ.get("EDITSPLAT_HF_TOKEN_FILE", "/dev_vepfs/rc_wu/.huggingface/token"))
+            checkpoint_path = os.environ.get("EDITSPLAT_SAM3_CHECKPOINT_PATH", "").strip() or None
+            device_name = os.environ.get("EDITSPLAT_SAM3_DEVICE", "cpu").strip().lower() or "cpu"
+            if device_name not in {"cpu", "cuda"}:
+                device_name = "cpu"
+
+            os.environ["HF_HOME"] = str(hf_home)
+            os.environ["HF_HUB_CACHE"] = str(hf_home / "hub")
+            if token_file.is_file():
+                token = parse_hf_token_line(token_file.read_text(encoding="utf-8").strip().splitlines()[0])
+                if token:
+                    os.environ["HF_TOKEN"] = token
+                    os.environ["HUGGINGFACE_HUB_TOKEN"] = token
+
+            print(
+                f"[INFO] SAM3 init: HF_HOME={hf_home} token_file={token_file} "
+                f"checkpoint_path={checkpoint_path or 'hf://facebook/sam3'} device={device_name}"
+            )
+            self._model = build_sam3_image_model(
+                device=device_name,
+                checkpoint_path=checkpoint_path,
+                load_from_HF=checkpoint_path is None,
+            )
+            self._processor = Sam3Processor(self._model, device=device_name)
+            self._base_confidence_threshold = float(os.environ.get("EDITSPLAT_SAM3_CONFIDENCE", "0.18"))
+            self._processor.set_confidence_threshold(self._base_confidence_threshold)
+            self._fallbacks = []
+            for raw in os.environ.get("EDITSPLAT_SAM3_CONFIDENCE_FALLBACKS", "0.12,0.08,0.04,0.0").split(","):
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    self._fallbacks.append(float(raw))
+                except ValueError:
+                    continue
+            self._last_used_threshold = self._base_confidence_threshold
+
+        def predict(self, image_pil, text_prompt):
+            image_size = (image_pil.size[1], image_pil.size[0])
+            last_exc = None
+            for prompt in iter_mask_prompts(text_prompt):
+                for threshold in [self._base_confidence_threshold, *self._fallbacks]:
+                    try:
+                        self._processor.set_confidence_threshold(float(threshold))
+                        state = self._processor.predict(image_pil, prompt)
+                        masks = state.get("masks")
+                        if masks is None:
+                            continue
+                        mask_t = torch.as_tensor(masks).detach().float().cpu()
+                        if mask_t.numel() == 0:
+                            continue
+                        if mask_t.ndim >= 4:
+                            mask_t = mask_t[0]
+                        if mask_t.ndim == 2:
+                            mask_t = mask_t.unsqueeze(0)
+                        elif mask_t.ndim == 3 and mask_t.shape[0] != 1:
+                            mask_t = mask_t.amax(dim=0, keepdim=True)
+                        if tuple(mask_t.shape[-2:]) != image_size:
+                            mask_t = F.interpolate(mask_t.unsqueeze(0), size=image_size, mode="nearest").squeeze(0)
+                        mask_t = (mask_t > 0).float()
+                        if float(mask_t.max().item()) <= 0.0:
+                            continue
+                        self._last_used_threshold = float(threshold)
+                        return mask_t, state.get("boxes"), state.get("scores"), None
+                    except Exception as exc:
+                        last_exc = exc
+                        continue
+            raise RuntimeError(f"SAM3 predict failed for prompt={text_prompt}: {last_exc}")
+
+    backend = os.environ.get("EDITSPLAT_MASK_BACKEND", "sam3").strip().lower()
     if backend in {"stub", "full", "full-image", "full_image"}:
         print(f"[WARN] EDITSPLAT_MASK_BACKEND={backend}: using full-image mask stub.")
-        return _LangSAMStub()
-
-    if backend not in {"langsam", "auto", ""}:
-        print(f"[WARN] Unknown EDITSPLAT_MASK_BACKEND={backend}; falling back to LangSAM.")
-
-    if LangSAM is None:
-        print("[WARN] LangSAM unavailable, using full-image mask stub.")
-        return _LangSAMStub()
-
-    hf_home = os.environ.get("EDITSPLAT_HF_HOME") or os.environ.get("HF_HOME") or "/dev_vepfs/rc_wu/cache/hf_home"
-    torch_home = os.environ.get("EDITSPLAT_TORCH_HOME") or os.environ.get("TORCH_HOME") or "/dev_vepfs/rc_wu/cache/torch"
-    sam_ckpt = os.environ.get("EDITSPLAT_LANGSAM_SAM_CKPT") or os.path.join(torch_home, "hub", "checkpoints", "sam_vit_h_4b8939.pth")
-    langsam_device = os.environ.get("EDITSPLAT_LANGSAM_DEVICE", "cpu").strip().lower() or "cpu"
-    if langsam_device not in {"auto", "cpu", "cuda"}:
-        print(f"[WARN] Unknown EDITSPLAT_LANGSAM_DEVICE={langsam_device}; falling back to cpu.")
-        langsam_device = "cpu"
-
-    os.environ["HF_HOME"] = hf_home
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-    os.environ["TORCH_HOME"] = torch_home
-
-    repo_root = Path(hf_home) / "hub" / "models--ShilongLiu--GroundingDINO"
-    snapshot_id = os.environ.get("EDITSPLAT_LANGSAM_DINO_SNAPSHOT_ID", "").strip()
-    if not snapshot_id:
-        ref_main = repo_root / "refs" / "main"
-        if ref_main.is_file():
-            snapshot_id = ref_main.read_text(encoding="utf-8").strip()
-    default_snapshot = repo_root / "snapshots" / snapshot_id if snapshot_id else repo_root / "snapshots"
-    dino_snapshot = Path(os.environ.get("EDITSPLAT_LANGSAM_DINO_SNAPSHOT", str(default_snapshot)))
-    dino_cfg = dino_snapshot / "GroundingDINO_SwinB.cfg.py"
-    dino_ckpt = dino_snapshot / "groundingdino_swinb_cogcoor.pth"
-
-    try:
-        from lang_sam import lang_sam as lang_sam_module
-
-        original_load_model_hf = getattr(lang_sam_module, "load_model_hf", None)
-
-        def _load_model_hf_local(repo_id, filename, ckpt_config_filename, device='cpu'):
-            cfg_path = dino_snapshot / ckpt_config_filename
-            ckpt_path = dino_snapshot / filename
-            if cfg_path.is_file() and ckpt_path.is_file():
-                args = lang_sam_module.SLConfig.fromfile(str(cfg_path))
-                model = lang_sam_module.build_model(args)
-                args.device = device
-                checkpoint = torch.load(str(ckpt_path), map_location='cpu')
-                log = model.load_state_dict(lang_sam_module.clean_state_dict(checkpoint['model']), strict=False)
-                print(
-                    f"[INFO] LangSAM local GroundingDINO load: repo_id={repo_id} cfg={cfg_path} ckpt={ckpt_path} => {log}"
-                )
-                model.eval()
-                return model
-            if callable(original_load_model_hf):
-                return original_load_model_hf(repo_id, filename, ckpt_config_filename, device=device)
-            raise FileNotFoundError(
-                f"GroundingDINO local snapshot incomplete: cfg={cfg_path} ckpt={ckpt_path}"
-            )
-
-        lang_sam_module.load_model_hf = _load_model_hf_local
-
-        original_cuda_is_available = torch.cuda.is_available
-        if os.path.isfile(sam_ckpt):
-            print(
-                f"[INFO] LangSAM local init: HF_HOME={hf_home} TORCH_HOME={torch_home} "
-                f"DINO_SNAPSHOT={dino_snapshot} SAM_CKPT={sam_ckpt} DEVICE={langsam_device}"
-            )
-            try:
-                if langsam_device == "cpu":
-                    torch.cuda.is_available = lambda: False
-                model = LangSAM(ckpt_path=sam_ckpt)
-            finally:
-                torch.cuda.is_available = original_cuda_is_available
-        else:
-            print(f"[WARN] LangSAM SAM checkpoint missing at {sam_ckpt}; trying default LangSAM() path.")
-            try:
-                if langsam_device == "cpu":
-                    torch.cuda.is_available = lambda: False
-                model = LangSAM()
-            finally:
-                torch.cuda.is_available = original_cuda_is_available
-        if model is None or not hasattr(model, "predict"):
-            raise RuntimeError("LangSAM() returned an invalid object")
-        resolved_device = str(getattr(model, "device", langsam_device))
-        setattr(model, "backend_name", f"langsam:{resolved_device}")
-        return model
-    except Exception as exc:
-        print(
-            "[WARN] LangSAM init failed, using full-image mask stub. "
-            f"backend={backend} hf_home={hf_home} torch_home={torch_home} "
-            f"dino_snapshot={dino_snapshot} sam_ckpt={sam_ckpt} exc={exc}"
-        )
-        return _LangSAMStub()
+        return _Sam3FullMaskStub()
+    if backend not in {"sam3", "auto", ""}:
+        raise RuntimeError(f"Unsupported mask backend for A-line: {backend}. Only sam3/full-image stub are allowed.")
+    return _Sam3MaskAdapter()
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -1768,30 +1752,37 @@ class Editsplat_Pipeline(FluxPipeline):
         if skip_agt:
             print("[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.")
             selected_mask = torch.ones_like(gaussians._opacity[:, 0], dtype=torch.float32)
+            support_mask = selected_mask.detach().clone()
         else:
             # attention Weighting
             attn_weights = torch.zeros_like(gaussians._opacity)
             attn_weights_cnt = torch.zeros_like(gaussians._opacity, dtype=torch.int32)
+            support_weights = torch.zeros_like(gaussians._opacity)
+            support_weights_cnt = torch.zeros_like(gaussians._opacity, dtype=torch.int32)
 
             for step, batch in enumerate(tqdm(train_dataloader, desc="Attention Weighting")):
                 idx = batch['idx'].item()
                 camera = camera_list[idx]
 
-                attn_mask = attn_list[step].to(render_device).float()
-                
+                raw_attn_mask = attn_list[step].to(render_device).float().unsqueeze(0)
+                attn_mask = raw_attn_mask.clone()
                 temp_binary = attn_mask > 0.5
                 attn_mask = attn_mask * temp_binary + 0.2 * attn_mask * (~temp_binary)
-                attn_mask = attn_mask.unsqueeze(0)
 
                 gaussians.apply_weights(camera, attn_weights, attn_weights_cnt, attn_mask)
+                gaussians.apply_weights(camera, support_weights, support_weights_cnt, raw_attn_mask)
 
             attn_weights /= attn_weights_cnt + 1e-7
             selected_mask = attn_weights[:, 0]
+            support_mask = normalize_gaussian_support_mask(
+                weight_sum=support_weights,
+                weight_count=support_weights_cnt,
+            )
 
         semantic_guidance_enabled = _env_flag("EDITSPLAT_ENABLE_SEMANTIC_GS_GUIDANCE", False)
         semantic_guidance = build_semantic_guidance(
             selected_mask=selected_mask,
-            support_mask=None,
+            support_mask=support_mask,
             enabled=semantic_guidance_enabled,
             support_weight=float(os.environ.get("EDITSPLAT_SEMANTIC_SUPPORT_WEIGHT", "0.5")),
             color_scale=float(os.environ.get("EDITSPLAT_SEMANTIC_COLOR_SCALE", "1.0")),

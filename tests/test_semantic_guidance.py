@@ -7,7 +7,11 @@ EDITSPLAT_ROOT = REPO_ROOT / "runtime" / "EditSplat"
 if str(EDITSPLAT_ROOT) not in sys.path:
     sys.path.insert(0, str(EDITSPLAT_ROOT))
 
-from utils.semantic_guidance import build_semantic_guidance, expand_loss_guidance_mask  # noqa: E402
+from utils.semantic_guidance import (  # noqa: E402
+    build_semantic_guidance,
+    expand_loss_guidance_mask,
+    normalize_gaussian_support_mask,
+)
 
 
 class SemanticGuidanceTests(unittest.TestCase):
@@ -53,6 +57,15 @@ class SemanticGuidanceTests(unittest.TestCase):
     def test_loss_guidance_mask_keeps_background_floor(self):
         result = expand_loss_guidance_mask(mask=[0.0, 1.0, 0.5], background_weight=0.1)
         self.assertEqual(result, [0.1, 1.0, 0.55])
+
+    def test_normalize_gaussian_support_mask_handles_zero_counts(self):
+        result = normalize_gaussian_support_mask(
+            weight_sum=[0.6, 0.0, 0.2],
+            weight_count=[2.0, 0.0, 1.0],
+        )
+        self.assertAlmostEqual(result[0], 0.3, places=6)
+        self.assertAlmostEqual(result[1], 0.0, places=6)
+        self.assertAlmostEqual(result[2], 0.2, places=6)
 
 
 if __name__ == "__main__":
