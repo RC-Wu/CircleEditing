@@ -73,12 +73,7 @@ def build_semantic_guidance(
     base_mask = _clone_like(selected_mask)
     if not enabled or support_mask is None:
         return SemanticGuidance(
-            mask=refine_semantic_guidance_mask(
-                mask=base_mask,
-                power=mask_power,
-                threshold=label_threshold,
-                background_floor=background_floor,
-            ),
+            mask=base_mask,
             color_scale=float(color_scale),
             position_scale=float(position_scale),
             used_support=False,
