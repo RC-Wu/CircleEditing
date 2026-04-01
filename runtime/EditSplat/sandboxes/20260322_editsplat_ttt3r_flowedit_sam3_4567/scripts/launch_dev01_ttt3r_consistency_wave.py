@@ -329,6 +329,7 @@ def collect_summary(runs: List[Dict[str, object]], wave_name: str) -> Path:
         }
         if meta_path.exists():
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            ttt3r_cfg = meta.get("ttt3r_cfg", {}) if isinstance(meta, dict) else {}
             for key in (
                 "mode",
                 "conf_power",
@@ -339,15 +340,16 @@ def collect_summary(runs: List[Dict[str, object]], wave_name: str) -> Path:
                 "preserve_boost",
                 "adaptive_max_scale",
                 "schedule_power",
-                "head_k",
-                "fit_loss_mask_mode",
-                "fit_loss_mask_bg",
             ):
+                row[key] = ttt3r_cfg.get(key)
+            for key in ("head_k", "fit_loss_mask_mode", "fit_loss_mask_bg"):
                 row[key] = meta.get(key)
         if mask_meta_path.exists():
             mask_meta = json.loads(mask_meta_path.read_text(encoding="utf-8"))
-            row["mask_backend_effective"] = mask_meta.get("effective")
-            row["mask_backend_detail"] = mask_meta.get("detail")
+            if isinstance(mask_meta, dict):
+                row["mask_backend_requested"] = mask_meta.get("requested")
+                row["mask_backend_effective"] = mask_meta.get("effective")
+                row["mask_backend_detail"] = mask_meta.get("detail")
         if mfg_stats_path.exists():
             mfg_stats = json.loads(mfg_stats_path.read_text(encoding="utf-8"))
             for key in ("proxy_rgb", "geo_weight", "edit_weight", "preserve_weight"):
