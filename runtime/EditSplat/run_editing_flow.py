@@ -55,7 +55,12 @@ from utils.loss_utils import l1_loss
 from utils.rgbd_warping import reproject_rgbd, reprojected2img
 from utils.camera_proximity_utils import find_nearby_camera
 from utils.flow_utils import scale_noise, calculate_shift, calc_v_flux
-from utils.semantic_guidance import build_semantic_guidance, expand_loss_guidance_mask, normalize_gaussian_support_mask
+from utils.semantic_guidance import (
+    accumulate_projected_gaussian_mask,
+    build_semantic_guidance,
+    expand_loss_guidance_mask,
+    normalize_gaussian_support_mask,
+)
 from utils.runtime_bootstrap import should_bootstrap_external_backend_only
 from utils.sam3_support import iter_mask_prompts, parse_hf_token_line
 
@@ -113,7 +118,7 @@ def _load_reward_model():
         return _DummyRewardModel()
 
 
-def _load_langsam():
+def _load_mask_backend():
     class _Sam3FullMaskStub:
         backend_name = "sam3_stub"
 
@@ -274,7 +279,7 @@ def _full_image_mask(image_height: int, image_width: int) -> torch.Tensor:
     return torch.ones((1, image_height, image_width), dtype=torch.float32)
 
 
-def _normalize_langsam_mask(
+def _normalize_mask_backend_mask(
     mask: Optional[torch.Tensor],
     image_height: int,
     image_width: int,
@@ -308,8 +313,8 @@ def _normalize_langsam_mask(
     return (mask > 0).float()
 
 
-def _predict_langsam_mask(
-    lang_sam,
+def _predict_mask_backend_mask(
+    mask_backend,
     image_pil: Image.Image,
     text_prompt: str,
     image_height: int,
@@ -318,13 +323,13 @@ def _predict_langsam_mask(
     if text_prompt == "no_mask":
         return _full_image_mask(image_height, image_width)
     try:
-        mask, _, _, _ = lang_sam.predict(image_pil, text_prompt)
-        mask = _normalize_langsam_mask(mask, image_height=image_height, image_width=image_width)
+        mask, _, _, _ = mask_backend.predict(image_pil, text_prompt)
+        mask = _normalize_mask_backend_mask(mask, image_height=image_height, image_width=image_width)
         if mask is None or mask.numel() == 0 or float(mask.max().item()) <= 0.0:
-            raise RuntimeError("LangSAM returned an empty mask")
+            raise RuntimeError("Mask backend returned an empty mask")
         return mask
     except Exception as exc:
-        print(f"[WARN] LangSAM predict failed, using full-image mask stub. prompt={text_prompt} exc={exc}")
+        print(f"[WARN] Mask backend predict failed, using full-image mask stub. prompt={text_prompt} exc={exc}")
         return _full_image_mask(image_height, image_width)
 
 
@@ -449,19 +454,6 @@ def _resolve_reward_selection(ranking, rewards, filtering_ratio: float, num_item
         "selected": selected,
     }
     return selected, meta
-    try:
-        return LangSAM()
-    except Exception as exc:
-        print(f"[WARN] LangSAM init failed, using full-image mask stub. exc={exc}")
-
-        class _LangSAMStub:
-            def predict(self, image_pil, text_prompt):
-                del text_prompt
-                w, h = image_pil.size
-                mask = torch.ones((1, h, w), dtype=torch.float32)
-                return mask, None, None, None
-
-        return _LangSAMStub()
 
 class HeadCameraDataset(Dataset):
     def __init__(self, base_dataset, k: int):
@@ -1262,7 +1254,7 @@ class Editsplat_Pipeline(FluxPipeline):
         src_prompt: str,
         tar_prompt: str,
         sdp,
-        mask_b1hw: Optional[torch.Tensor] = None,  # LangSAM mask，可为 [H,W]/[1,H,W]/[1,1,H,W]
+        mask_b1hw: Optional[torch.Tensor] = None,  # segmentation mask，可为 [H,W]/[1,H,W]/[1,1,H,W]
     ):
         device = rendered_bchw.device
         # 组态 & 缓存
@@ -1327,7 +1319,7 @@ class Editsplat_Pipeline(FluxPipeline):
             wt = 1.0
         wt = torch.tensor(wt, device=device, dtype=xt_tar.dtype)
 
-        # ---- LangSAM 掩码：仅在损失里做 gating（不改变前向）----
+        # ---- segmentation 掩码：仅在损失里做 gating（不改变前向）----
         m_tok = None
         if mask_b1hw is not None:
             m = mask_b1hw
@@ -1407,8 +1399,8 @@ class Editsplat_Pipeline(FluxPipeline):
         # load ImageReward
         reward_model = _load_reward_model()
 
-        # load Lang-SAM
-        lang_sam = _load_langsam()
+        # load SAM3-backed mask backend
+        mask_backend = _load_mask_backend()
 
         # load 3D Gaussian Splatting
         gaussians = GaussianModel(dataset.sh_degree)
@@ -1452,9 +1444,6 @@ class Editsplat_Pipeline(FluxPipeline):
         bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device=render_device)
 
-        # for multi-view attention weighting
-        attn_list = []
-
         # utility setting
         topilimage = ToPILImage()
 
@@ -1484,6 +1473,7 @@ class Editsplat_Pipeline(FluxPipeline):
         # Get Camera distance matrix
         camera_list = train_dataset.camera_list
         camera_dist_order, _ = find_nearby_camera(camera_list)
+        attn_masks_by_view = {}
 
         image_height = camera_list[0].image_height
         image_width = camera_list[0].image_width
@@ -1600,7 +1590,7 @@ class Editsplat_Pipeline(FluxPipeline):
             if mfg_mode == "initial_only":
                 full_mask = torch.ones((1, image_height, image_width), dtype=torch.float32, device=render_device)
                 edited_image_MFG = edited_image_list[idx].unsqueeze(0).to(torch.float32)
-                attn_list.append(full_mask)
+                attn_masks_by_view[idx] = full_mask
                 edited_image_MFG_list.append(edited_image_MFG.squeeze(0).detach().cpu().clone())
                 _dump_stage_payload(
                     debug_root=debug_root,
@@ -1677,8 +1667,8 @@ class Editsplat_Pipeline(FluxPipeline):
                 dst_image_pil = Image.fromarray((dst_image_np * 255).astype(np.uint8))
                 
                 reprejected_image = dst_image.unsqueeze(0)
-                mask = _predict_langsam_mask(
-                    lang_sam=lang_sam,
+                mask = _predict_mask_backend_mask(
+                    mask_backend=mask_backend,
                     image_pil=dst_image_pil,
                     text_prompt=ed.target_mask_prompt,
                     image_height=image_height,
@@ -1736,14 +1726,14 @@ class Editsplat_Pipeline(FluxPipeline):
             #     image_height=image_height, image_width=image_width
             # )
             
-            # TODO !! LangSAM替代 
+            # Save a per-view SAM3 mask for Gaussian guidance and loss masking.
             # gt_img (1,3,h,w) -> (3,h,w)
             alter_np_gt_img = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
             alter_np_gt_img_pil = Image.fromarray((alter_np_gt_img * 255).astype(np.uint8))
             
             # reprejected_image = dst_image.unsqueeze(0)
-            alter_gt_mask = _predict_langsam_mask(
-                lang_sam=lang_sam,
+            alter_gt_mask = _predict_mask_backend_mask(
+                mask_backend=mask_backend,
                 image_pil=alter_np_gt_img_pil,
                 text_prompt=ed.target_mask_prompt,
                 image_height=image_height,
@@ -1757,7 +1747,7 @@ class Editsplat_Pipeline(FluxPipeline):
             # max_val = trg_object_average_attention_map_512.max()
             # trg_object_average_attention_map_512 = (trg_object_average_attention_map_512 - min_val) / (max_val - min_val)
 
-            attn_list.append(alter_gt_mask.to(render_device))
+            attn_masks_by_view[idx] = alter_gt_mask.to(render_device)
             
             # save gaussian target image
             edited_image_MFG_list.append(edited_image_MFG.squeeze(0).detach().cpu().clone())
@@ -1786,35 +1776,113 @@ class Editsplat_Pipeline(FluxPipeline):
 
         '''Attention-Guided Trimming (AGT)'''
         skip_agt = os.environ.get("EDITSPLAT_SKIP_AGT", "0").strip().lower() in ("1", "true", "yes")
-        if skip_agt:
-            print("[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.")
-            selected_mask = torch.ones_like(gaussians._opacity[:, 0], dtype=torch.float32)
-            support_mask = selected_mask.detach().clone()
-        else:
-            # attention Weighting
+        gaussian_mask_mode = _env_choice("EDITSPLAT_GAUSSIAN_MASK_MODE", "projection")
+        gaussian_mask_chunk = max(1, _env_int("EDITSPLAT_GAUSSIAN_MASK_CHUNK", 65536))
+        gaussian_mask_depth_tolerance = float(os.environ.get("EDITSPLAT_GAUSSIAN_MASK_DEPTH_TOLERANCE", "0.0"))
+        keep_support_when_skip_agt = _env_flag("EDITSPLAT_SKIP_AGT_KEEP_SUPPORT", True)
+        full_view_mask = torch.ones((1, image_height, image_width), dtype=torch.float32, device=render_device)
+
+        def _get_attn_mask(view_idx: int) -> torch.Tensor:
+            return attn_masks_by_view.get(view_idx, full_view_mask).to(render_device).float()
+
+        def _soften_attn_mask(mask: torch.Tensor) -> torch.Tensor:
+            temp_binary = mask > 0.5
+            return mask * temp_binary + 0.2 * mask * (~temp_binary)
+
+        def _compute_projected_masks(use_support_as_selected: bool = False):
+            raw_masks = [_get_attn_mask(idx) for idx in range(len(camera_list))]
+            support_weights, support_weights_cnt = accumulate_projected_gaussian_mask(
+                gaussian_xyz=gaussians.get_xyz.detach(),
+                camera_list=camera_list,
+                image_masks=raw_masks,
+                chunk_size=gaussian_mask_chunk,
+                depth_tolerance=gaussian_mask_depth_tolerance,
+            )
+            support_mask_local = normalize_gaussian_support_mask(
+                weight_sum=support_weights,
+                weight_count=support_weights_cnt,
+            ).clamp(0.0, 1.0)
+            if use_support_as_selected:
+                selected_mask_local = support_mask_local.detach().clone()
+            else:
+                selected_weights, selected_weights_cnt = accumulate_projected_gaussian_mask(
+                    gaussian_xyz=gaussians.get_xyz.detach(),
+                    camera_list=camera_list,
+                    image_masks=[_soften_attn_mask(mask) for mask in raw_masks],
+                    chunk_size=gaussian_mask_chunk,
+                    depth_tolerance=gaussian_mask_depth_tolerance,
+                )
+                selected_mask_local = normalize_gaussian_support_mask(
+                    weight_sum=selected_weights,
+                    weight_count=selected_weights_cnt,
+                ).clamp(0.0, 1.0)
+            return selected_mask_local, support_mask_local
+
+        def _compute_rasterizer_masks():
             attn_weights = torch.zeros_like(gaussians._opacity)
             attn_weights_cnt = torch.zeros_like(gaussians._opacity, dtype=torch.int32)
             support_weights = torch.zeros_like(gaussians._opacity)
             support_weights_cnt = torch.zeros_like(gaussians._opacity, dtype=torch.int32)
 
-            for step, batch in enumerate(tqdm(train_dataloader, desc="Attention Weighting")):
-                idx = batch['idx'].item()
-                camera = camera_list[idx]
-
-                raw_attn_mask = attn_list[step].to(render_device).float().unsqueeze(0)
-                attn_mask = raw_attn_mask.clone()
-                temp_binary = attn_mask > 0.5
-                attn_mask = attn_mask * temp_binary + 0.2 * attn_mask * (~temp_binary)
-
+            for idx, camera in enumerate(tqdm(camera_list, desc="Attention Weighting")):
+                raw_attn_mask = _get_attn_mask(idx).unsqueeze(0)
+                attn_mask = _soften_attn_mask(raw_attn_mask.clone())
                 gaussians.apply_weights(camera, attn_weights, attn_weights_cnt, attn_mask)
                 gaussians.apply_weights(camera, support_weights, support_weights_cnt, raw_attn_mask)
 
-            attn_weights /= attn_weights_cnt + 1e-7
-            selected_mask = attn_weights[:, 0]
-            support_mask = normalize_gaussian_support_mask(
+            attn_weights = attn_weights / (attn_weights_cnt + 1e-7)
+            selected_mask_local = attn_weights[:, 0].clamp(0.0, 1.0)
+            support_mask_local = normalize_gaussian_support_mask(
                 weight_sum=support_weights,
                 weight_count=support_weights_cnt,
+            ).clamp(0.0, 1.0)
+            return selected_mask_local, support_mask_local
+
+        def _is_rasterizer_mask_failure(exc: Exception) -> bool:
+            msg = str(exc).lower()
+            return (
+                "out of memory" in msg
+                or "illegal memory access" in msg
+                or "apply_weights" in msg
+                or "cuda error" in msg
             )
+
+        if skip_agt:
+            if keep_support_when_skip_agt:
+                print("[WARN] EDITSPLAT_SKIP_AGT=1: skip AGT rasterizer path but keep projected SAM3 support guidance.")
+                selected_mask, support_mask = _compute_projected_masks(use_support_as_selected=True)
+            else:
+                print("[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.")
+                selected_mask = torch.ones_like(gaussians._opacity[:, 0], dtype=torch.float32)
+                support_mask = selected_mask.detach().clone()
+        else:
+            if gaussian_mask_mode == "projection":
+                selected_mask, support_mask = _compute_projected_masks()
+                print("[INFO] Gaussian mask accumulation mode=projection")
+            elif gaussian_mask_mode == "rasterizer":
+                selected_mask, support_mask = _compute_rasterizer_masks()
+                print("[INFO] Gaussian mask accumulation mode=rasterizer")
+            elif gaussian_mask_mode == "auto":
+                try:
+                    selected_mask, support_mask = _compute_rasterizer_masks()
+                    print("[INFO] Gaussian mask accumulation mode=rasterizer(auto)")
+                except RuntimeError as exc:
+                    if not _is_rasterizer_mask_failure(exc):
+                        raise
+                    print(f"[WARN] Rasterizer gaussian mask accumulation failed, fallback to projection. exc={exc}")
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    selected_mask, support_mask = _compute_projected_masks()
+            else:
+                raise RuntimeError(
+                    f"Unsupported EDITSPLAT_GAUSSIAN_MASK_MODE={gaussian_mask_mode}. "
+                    "Choose projection, rasterizer, or auto."
+                )
+
+        print(
+            f"[INFO] Gaussian mask stats: selected_mean={float(selected_mask.mean().item()):.4f} "
+            f"support_mean={float(support_mask.mean().item()):.4f}"
+        )
 
         semantic_guidance_enabled = _env_flag("EDITSPLAT_ENABLE_SEMANTIC_GS_GUIDANCE", False)
         semantic_guidance = build_semantic_guidance(
@@ -1883,9 +1951,9 @@ class Editsplat_Pipeline(FluxPipeline):
                     edited_image_MFG_for_3dgs = F.interpolate(edited_image_MFG_for_3dgs, size=(image_height, image_width), mode='bilinear', align_corners=True)
 
                 loss_guidance_mask = None
-                if semantic_guidance_enabled and idx < len(attn_list):
+                if _env_flag("EDITSPLAT_ENABLE_SEMANTIC_LOSS_MASK", True) and idx in attn_masks_by_view:
                     loss_guidance_mask = expand_loss_guidance_mask(
-                        mask=attn_list[idx].to(device=rendered_image.device, dtype=rendered_image.dtype),
+                        mask=attn_masks_by_view[idx].to(device=rendered_image.device, dtype=rendered_image.dtype),
                         background_weight=float(os.environ.get("EDITSPLAT_SEMANTIC_BG_WEIGHT", "0.15")),
                     )
 
