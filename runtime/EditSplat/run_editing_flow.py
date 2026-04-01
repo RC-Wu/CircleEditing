@@ -123,6 +123,41 @@ def _load_langsam():
             mask = torch.ones((1, h, w), dtype=torch.float32)
             return mask, None, None, None
 
+    def _patch_sam3_decoder_cache_device() -> None:
+        try:
+            from sam3.model.decoder import TransformerDecoder
+        except Exception:
+            return
+        if getattr(TransformerDecoder, "_editsplat_cache_device_patch", False):
+            return
+
+        orig_get_rpb_matrix = TransformerDecoder._get_rpb_matrix
+
+        def _move_cache_pair(pair, device):
+            if pair is None:
+                return None
+            coords_h, coords_w = pair
+            if coords_h.device != device or coords_w.device != device:
+                coords_h = coords_h.to(device)
+                coords_w = coords_w.to(device)
+            return coords_h, coords_w
+
+        def _patched_get_rpb_matrix(self, reference_boxes, feat_size):
+            device = reference_boxes.device
+            if getattr(self, "compilable_cord_cache", None) is not None:
+                moved = _move_cache_pair(self.compilable_cord_cache, device)
+                if moved is not None:
+                    self.compilable_cord_cache = moved
+            coord_cache = getattr(self, "coord_cache", None)
+            if isinstance(coord_cache, dict) and feat_size in coord_cache:
+                moved = _move_cache_pair(coord_cache.get(feat_size), device)
+                if moved is not None:
+                    coord_cache[feat_size] = moved
+            return orig_get_rpb_matrix(self, reference_boxes, feat_size)
+
+        TransformerDecoder._get_rpb_matrix = _patched_get_rpb_matrix
+        TransformerDecoder._editsplat_cache_device_patch = True
+
     class _Sam3MaskAdapter:
         backend_name = "sam3"
 
@@ -145,6 +180,7 @@ def _load_langsam():
                     os.environ["HF_TOKEN"] = token
                     os.environ["HUGGINGFACE_HUB_TOKEN"] = token
 
+            _patch_sam3_decoder_cache_device()
             print(
                 f"[INFO] SAM3 init: HF_HOME={hf_home} token_file={token_file} "
                 f"checkpoint_path={checkpoint_path or 'hf://facebook/sam3'} device={device_name}"
@@ -175,7 +211,8 @@ def _load_langsam():
                 for threshold in [self._base_confidence_threshold, *self._fallbacks]:
                     try:
                         self._processor.set_confidence_threshold(float(threshold))
-                        state = self._processor.predict(image_pil, prompt)
+                        state = self._processor.set_image(image_pil)
+                        state = self._processor.set_text_prompt(prompt, state)
                         masks = state.get("masks")
                         if masks is None:
                             continue

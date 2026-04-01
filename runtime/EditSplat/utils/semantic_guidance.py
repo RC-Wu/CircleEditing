@@ -72,6 +72,22 @@ def build_semantic_guidance(
     )
 
 
+def normalize_gaussian_support_mask(weight_sum: Any, weight_count: Any, eps: float = 1e-7) -> Any:
+    if _is_torch_tensor(weight_sum):
+        weight_sum_t = weight_sum.detach().clone().to(dtype=torch.float32)
+        weight_count_t = weight_count.detach().clone().to(dtype=torch.float32)
+        normalized = weight_sum_t / (weight_count_t + float(eps))
+        if normalized.ndim == 2 and normalized.shape[1] == 1:
+            return normalized[:, 0]
+        return normalized
+
+    out = []
+    for cur_sum, cur_count in zip(weight_sum, weight_count):
+        count = float(cur_count)
+        out.append(float(cur_sum) / (count + float(eps)) if count > 0.0 else 0.0)
+    return out
+
+
 def expand_loss_guidance_mask(mask: Any, background_weight: float) -> Any:
     background_weight = max(0.0, min(1.0, float(background_weight)))
     if _is_torch_tensor(mask):
