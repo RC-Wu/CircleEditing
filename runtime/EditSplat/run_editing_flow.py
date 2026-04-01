@@ -1396,6 +1396,7 @@ class Editsplat_Pipeline(FluxPipeline):
 
         gaussians.training_setup(opt)
 
+        start_iteration = 0
         if dataset.source_checkpoint:
             # Avoid cross-GPU restore/OOM from serialized CUDA device ids in checkpoint.
             (model_params, first_iter) = torch.load(dataset.source_checkpoint, map_location="cpu")
