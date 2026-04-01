@@ -60,7 +60,10 @@ from utils.semantic_guidance import (
     build_semantic_guidance,
     expand_loss_guidance_mask,
     normalize_gaussian_support_mask,
+    summarize_gaussian_mask,
+    summarize_mask,
     summarize_mask_distribution,
+    summarize_mask_overlap,
 )
 from utils.runtime_bootstrap import should_bootstrap_external_backend_only
 from utils.sam3_support import iter_mask_prompts, parse_hf_token_line, resolve_sam3_backend_request
@@ -1896,7 +1899,13 @@ class Editsplat_Pipeline(FluxPipeline):
         semantic_bg_weight = float(os.environ.get("EDITSPLAT_SEMANTIC_BG_WEIGHT", "0.15"))
         semantic_mask_power = float(os.environ.get("EDITSPLAT_SEMANTIC_MASK_POWER", "1.0"))
         semantic_label_threshold = float(os.environ.get("EDITSPLAT_SEMANTIC_LABEL_THRESHOLD", "0.0"))
-        semantic_background_floor = float(os.environ.get("EDITSPLAT_SEMANTIC_BACKGROUND_FLOOR", "0.0"))
+        semantic_background_floor = float(
+            os.environ.get(
+                "EDITSPLAT_SEMANTIC_LABEL_BG_FLOOR",
+                os.environ.get("EDITSPLAT_SEMANTIC_BACKGROUND_FLOOR", "0.0"),
+            )
+        )
+        semantic_summary_threshold = semantic_label_threshold if semantic_label_threshold > 0.0 else 0.5
         semantic_freeze_geometry = _env_flag("EDITSPLAT_SEMANTIC_FREEZE_GEOMETRY", False)
         semantic_guidance = build_semantic_guidance(
             selected_mask=selected_mask,
@@ -1930,12 +1939,12 @@ class Editsplat_Pipeline(FluxPipeline):
             "selected_full": summarize_mask(selected_mask),
             "support_full": summarize_mask(support_mask),
             "final_full": summarize_mask(semantic_guidance.mask),
-            "selected_labels": summarize_gaussian_mask(selected_mask, label_threshold=0.5),
-            "support_labels": summarize_gaussian_mask(support_mask, label_threshold=0.5),
-            "final_labels": summarize_gaussian_mask(semantic_guidance.mask, label_threshold=0.5),
-            "selected_support_overlap": summarize_mask_overlap(selected_mask, support_mask, threshold=0.5),
-            "selected_final_overlap": summarize_mask_overlap(selected_mask, semantic_guidance.mask, threshold=0.5),
-            "support_final_overlap": summarize_mask_overlap(support_mask, semantic_guidance.mask, threshold=0.5),
+            "selected_labels": summarize_gaussian_mask(selected_mask, label_threshold=semantic_summary_threshold),
+            "support_labels": summarize_gaussian_mask(support_mask, label_threshold=semantic_summary_threshold),
+            "final_labels": summarize_gaussian_mask(semantic_guidance.mask, label_threshold=semantic_summary_threshold),
+            "selected_support_overlap": summarize_mask_overlap(selected_mask, support_mask, threshold=semantic_summary_threshold),
+            "selected_final_overlap": summarize_mask_overlap(selected_mask, semantic_guidance.mask, threshold=semantic_summary_threshold),
+            "support_final_overlap": summarize_mask_overlap(support_mask, semantic_guidance.mask, threshold=semantic_summary_threshold),
             "view_mask_summaries": view_mask_summaries,
             "view_mask_summary_limit": int(view_mask_summary_limit),
             "semantic_guidance_enabled": bool(semantic_guidance_enabled),
@@ -1954,6 +1963,7 @@ class Editsplat_Pipeline(FluxPipeline):
             "semantic_mask_power": float(semantic_mask_power),
             "semantic_label_threshold": float(semantic_label_threshold),
             "semantic_background_floor": float(semantic_background_floor),
+            "semantic_summary_threshold": float(semantic_summary_threshold),
             "semantic_freeze_geometry": bool(semantic_freeze_geometry),
         }
 
@@ -1962,7 +1972,7 @@ class Editsplat_Pipeline(FluxPipeline):
             f"selected_mean={gaussian_mask_stats['selected']['mean']:.4f} "
             f"support_mean={gaussian_mask_stats['support']['mean']:.4f} "
             f"final_mean={gaussian_mask_stats['final']['mean']:.4f} "
-            f"final_ge_0_50={gaussian_mask_stats['final']['ge_0_50_ratio']:.4f} "
+            f"final_fg_ratio={gaussian_mask_stats['final_labels']['foreground_ratio']:.4f} "
             f"selected_support_iou={gaussian_mask_stats['selected_support_overlap']['iou']:.4f}"
         )
 
