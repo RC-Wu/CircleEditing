@@ -751,7 +751,11 @@ def _load_legacy_wrapper():
 
 
 _LEGACY_WRAPPER = _load_legacy_wrapper()
-_LEGACY_LANGSAM_LOADER = _LEGACY_WRAPPER.ref._load_langsam  # type: ignore[attr-defined]
+_LEGACY_LANGSAM_LOADER = getattr(_LEGACY_WRAPPER.ref, "_load_mask_backend", None)
+if _LEGACY_LANGSAM_LOADER is None:
+    _LEGACY_LANGSAM_LOADER = getattr(_LEGACY_WRAPPER.ref, "_load_langsam", None)
+if _LEGACY_LANGSAM_LOADER is None:
+    raise RuntimeError("Legacy TTT3R wrapper could not find a compatible mask backend loader.")
 _patch_ttt3r_runtime_device()
 
 
