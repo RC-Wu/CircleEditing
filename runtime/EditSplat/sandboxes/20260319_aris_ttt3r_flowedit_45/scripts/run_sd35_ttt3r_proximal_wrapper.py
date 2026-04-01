@@ -1433,9 +1433,13 @@ def main() -> None:
         }
 
     patch_edit_methods(adapter=adapter, runtime=runtime)
-    pipeline._external_edit_backend = types.SimpleNamespace(
-        device=adapter.device,
-        summarize=backend_summary,
+    object.__setattr__(
+        pipeline,
+        "_external_edit_backend",
+        types.SimpleNamespace(
+            device=adapter.device,
+            summarize=backend_summary,
+        ),
     )
 
     os.makedirs(dataset.model_path, exist_ok=True)
