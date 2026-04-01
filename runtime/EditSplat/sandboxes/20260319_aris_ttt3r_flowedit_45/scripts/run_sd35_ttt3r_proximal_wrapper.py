@@ -1318,26 +1318,51 @@ def main() -> None:
 
     run_dtype = torch.bfloat16 if (base_device.type == "cuda" and torch.cuda.is_bf16_supported()) else torch.float16
     base_model_id = os.environ.get("EDITSPLAT_BASE_MODEL_ID", "black-forest-labs/FLUX.1-dev")
-    pipeline = Editsplat_Pipeline.from_pretrained(
-        base_model_id,
-        torch_dtype=run_dtype,
-        use_safetensors=True,
-        token=os.environ.get("HF_TOKEN", None),
-        cache_dir=str(Path(wargs.hf_home) / "hub"),
-    )
-    for name in ("transformer", "text_encoder", "text_encoder_2"):
-        mod = getattr(pipeline, name, None)
-        if mod is not None:
+    external_backend_only = False
+    should_bootstrap = getattr(ref, "should_bootstrap_external_backend_only", None)
+    if callable(should_bootstrap):
+        env_enabled = str(os.environ.get("EDITSPLAT_EXTERNAL_BACKEND_ONLY", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        external_backend_only = bool(
+            should_bootstrap(
+                flow_method=getattr(run_args, "flow_method", "flowedit"),
+                flow_model_key=getattr(run_args, "flow_model_key", "flux1-dev"),
+                env_enabled=env_enabled,
+            )
+        )
+
+    if external_backend_only and hasattr(Editsplat_Pipeline, "build_external_backend_only"):
+        print(
+            "[WARN] EDITSPLAT_EXTERNAL_BACKEND_ONLY=1: "
+            f"skip base FLUX bootstrap for flow_method={getattr(run_args, 'flow_method', '')} "
+            f"flow_model_key={getattr(run_args, 'flow_model_key', '')}."
+        )
+        pipeline = Editsplat_Pipeline.build_external_backend_only()
+    else:
+        pipeline = Editsplat_Pipeline.from_pretrained(
+            base_model_id,
+            torch_dtype=run_dtype,
+            use_safetensors=True,
+            token=os.environ.get("HF_TOKEN", None),
+            cache_dir=str(Path(wargs.hf_home) / "hub"),
+        )
+        for name in ("transformer", "text_encoder", "text_encoder_2"):
+            mod = getattr(pipeline, name, None)
+            if mod is not None:
+                try:
+                    mod.to("cpu")
+                except Exception:
+                    pass
+        vae = getattr(pipeline, "vae", None)
+        if vae is not None:
             try:
-                mod.to("cpu")
+                vae.to(str(base_device))
             except Exception:
                 pass
-    vae = getattr(pipeline, "vae", None)
-    if vae is not None:
-        try:
-            vae.to(str(base_device))
-        except Exception:
-            pass
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
