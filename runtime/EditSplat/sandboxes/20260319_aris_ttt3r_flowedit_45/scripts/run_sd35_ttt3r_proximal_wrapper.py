@@ -802,6 +802,10 @@ def patch_fit_loss_control(
             network_output = network_output.unsqueeze(0)
         if gt.ndim == 3:
             gt = gt.unsqueeze(0)
+        if tuple(mask_dev.shape[-2:]) != tuple(network_output.shape[-2:]):
+            mask_dev = F.interpolate(mask_dev.float(), size=network_output.shape[-2:], mode="nearest").to(
+                dtype=network_output.dtype
+            )
         target_device = gt.device
         gt = gt.to(device=network_output.device, dtype=network_output.dtype)
         diff = (network_output - gt).abs()
@@ -854,6 +858,8 @@ def patch_fit_loss_control(
                 mask_dev = mask.to(device=target_device, dtype=x.dtype)
                 if mask_dev.ndim == 3:
                     mask_dev = mask_dev.unsqueeze(0)
+                if tuple(mask_dev.shape[-2:]) != tuple(x.shape[-2:]):
+                    mask_dev = F.interpolate(mask_dev.float(), size=x.shape[-2:], mode="nearest").to(dtype=x.dtype)
                 x_masked = x * mask_dev + y.detach() * (1.0 - mask_dev)
                 y_masked = y
                 if hasattr(base_loss, "to"):
