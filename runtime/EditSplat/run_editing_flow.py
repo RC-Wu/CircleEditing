@@ -1808,6 +1808,7 @@ class Editsplat_Pipeline(FluxPipeline):
 
         iteration = start_iteration
         skip_backward_on_error = _env_flag("EDITSPLAT_SKIP_3DGS_BACKWARD_ON_ERROR", False)
+        skip_render_on_error = _env_flag("EDITSPLAT_SKIP_3DGS_RENDER_ON_ERROR", False)
         abort_optim = False
         for epoch in range(opt.epoch):
             for step, batch in enumerate(tqdm(train_dataloader, desc=f"EPOCH {epoch}: optimizing 3D Gaussian Splatting")):
@@ -1822,8 +1823,21 @@ class Editsplat_Pipeline(FluxPipeline):
                 gaussians.update_learning_rate(iteration)
 
                 viewspace_point_list = []
-                
-                render_pkg = render(viewpoint_cam, gaussians, pipe, background)
+
+                try:
+                    render_pkg = render(viewpoint_cam, gaussians, pipe, background)
+                except RuntimeError as exc:
+                    msg = str(exc).lower()
+                    if skip_render_on_error and ("out of memory" in msg or "illegal memory access" in msg):
+                        print(
+                            "[WARN] EDITSPLAT_SKIP_3DGS_RENDER_ON_ERROR=1: "
+                            f"skip optimization view idx={idx} due to render failure: {exc}"
+                        )
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        iteration += 1
+                        continue
+                    raise
 
                 rendered_image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
