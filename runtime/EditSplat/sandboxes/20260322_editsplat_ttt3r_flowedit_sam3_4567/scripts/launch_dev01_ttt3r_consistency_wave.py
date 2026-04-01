@@ -25,6 +25,14 @@ DATASET_FACE = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/d
 SOURCE_CKPT = (ROOT / "runtime" / "compat_pretrained_face" / "chkpnt7004.pth").resolve()
 HF_HOME = Path("/dev_vepfs/rc_wu/cache/hf_home_dev02").resolve()
 HF_TOKEN = Path("/dev_vepfs/rc_wu/.huggingface/token").resolve()
+SAM3_PT = (
+    HF_HOME
+    / "hub"
+    / "models--facebook--sam3"
+    / "snapshots"
+    / "3c879f39826c281e95690f02c7821c4de09afae7"
+    / "sam3.pt"
+).resolve()
 LOG_DIR = ROOT / "logs"
 RESULTS_DIR = ROOT / "results"
 SUMMARY_DIR = ROOT / "results" / "summaries"
@@ -271,9 +279,11 @@ def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
     env["TRANSFORMERS_OFFLINE"] = "1"
     env["EDITSPLAT_HF_HOME"] = str(HF_HOME)
     env["EDITSPLAT_HF_TOKEN_FILE"] = str(HF_TOKEN)
+    env["EDITSPLAT_SAM3_CHECKPOINT_PATH"] = str(SAM3_PT)
     env["EDITSPLAT_MASK_BACKEND"] = str(exp.mask_backend)
     env["EDITSPLAT_SAM3_DEVICE"] = "cpu"
     env["EDITSPLAT_EXTERNAL_BACKEND_ONLY"] = "1"
+    env["EDITSPLAT_GAUSSIAN_MASK_MODE"] = "projection"
     env["EDITSPLAT_SKIP_3DGS_BACKWARD_ON_ERROR"] = "1"
     env["EDITSPLAT_SKIP_RENDER_SETS"] = "1"
     env["EDITSPLAT_MAX_TRAIN_VIEWS"] = str(exp.max_train_views)
