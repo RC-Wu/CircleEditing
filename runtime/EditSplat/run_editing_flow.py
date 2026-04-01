@@ -60,9 +60,10 @@ from utils.semantic_guidance import (
     build_semantic_guidance,
     expand_loss_guidance_mask,
     normalize_gaussian_support_mask,
+    summarize_mask_distribution,
 )
 from utils.runtime_bootstrap import should_bootstrap_external_backend_only
-from utils.sam3_support import iter_mask_prompts, parse_hf_token_line
+from utils.sam3_support import iter_mask_prompts, parse_hf_token_line, resolve_sam3_backend_request
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -242,12 +243,10 @@ def _load_mask_backend():
                         continue
             raise RuntimeError(f"SAM3 predict failed for prompt={text_prompt}: {last_exc}")
 
-    backend = os.environ.get("EDITSPLAT_MASK_BACKEND", "sam3").strip().lower()
-    if backend in {"stub", "full", "full-image", "full_image"}:
-        print(f"[WARN] EDITSPLAT_MASK_BACKEND={backend}: using full-image mask stub.")
+    backend = resolve_sam3_backend_request(os.environ.get("EDITSPLAT_MASK_BACKEND", "sam3"))
+    if backend == "stub":
+        print("[WARN] EDITSPLAT_MASK_BACKEND=stub/full-image: using full-image mask stub.")
         return _Sam3FullMaskStub()
-    if backend not in {"sam3", "auto", ""}:
-        raise RuntimeError(f"Unsupported mask backend for A-line: {backend}. Only sam3/full-image stub are allowed.")
     return _Sam3MaskAdapter()
 
 
@@ -399,6 +398,16 @@ def _dump_stage_payload(
     if meta:
         stats["meta"] = meta
     (stage_dir / "stats.json").write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _write_gaussian_mask_stats(model_path: str, stats: Dict[str, object]) -> Optional[Path]:
+    if not _env_flag("EDITSPLAT_DUMP_GAUSSIAN_MASK_STATS", True):
+        return None
+    out_dir = Path(model_path) / "debug_intermediates" / "semantic_guidance"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "gaussian_mask_stats.json"
+    out_path.write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
+    return out_path
 
 
 def _normalize_reward_ranks(ranking, num_items: int) -> List[int]:
@@ -1759,6 +1768,7 @@ class Editsplat_Pipeline(FluxPipeline):
                     "gt": gt_image,
                     "reprojected": reprejected_image,
                     "mask": mask,
+                    "sam3_mask": alter_gt_mask,
                     "mf_cond": MF_image,
                     "mfg_output": edited_image_MFG,
                 },
@@ -1879,21 +1889,86 @@ class Editsplat_Pipeline(FluxPipeline):
                     "Choose projection, rasterizer, or auto."
                 )
 
-        print(
-            f"[INFO] Gaussian mask stats: selected_mean={float(selected_mask.mean().item()):.4f} "
-            f"support_mean={float(support_mask.mean().item()):.4f}"
-        )
-
         semantic_guidance_enabled = _env_flag("EDITSPLAT_ENABLE_SEMANTIC_GS_GUIDANCE", False)
+        semantic_support_weight = float(os.environ.get("EDITSPLAT_SEMANTIC_SUPPORT_WEIGHT", "0.5"))
+        semantic_color_scale = float(os.environ.get("EDITSPLAT_SEMANTIC_COLOR_SCALE", "1.0"))
+        semantic_position_scale = float(os.environ.get("EDITSPLAT_SEMANTIC_POSITION_SCALE", "1.0"))
+        semantic_bg_weight = float(os.environ.get("EDITSPLAT_SEMANTIC_BG_WEIGHT", "0.15"))
+        semantic_mask_power = float(os.environ.get("EDITSPLAT_SEMANTIC_MASK_POWER", "1.0"))
+        semantic_label_threshold = float(os.environ.get("EDITSPLAT_SEMANTIC_LABEL_THRESHOLD", "0.0"))
+        semantic_background_floor = float(os.environ.get("EDITSPLAT_SEMANTIC_BACKGROUND_FLOOR", "0.0"))
+        semantic_freeze_geometry = _env_flag("EDITSPLAT_SEMANTIC_FREEZE_GEOMETRY", False)
         semantic_guidance = build_semantic_guidance(
             selected_mask=selected_mask,
             support_mask=support_mask,
             enabled=semantic_guidance_enabled,
-            support_weight=float(os.environ.get("EDITSPLAT_SEMANTIC_SUPPORT_WEIGHT", "0.5")),
-            color_scale=float(os.environ.get("EDITSPLAT_SEMANTIC_COLOR_SCALE", "1.0")),
-            position_scale=float(os.environ.get("EDITSPLAT_SEMANTIC_POSITION_SCALE", "1.0")),
-            freeze_geometry=_env_flag("EDITSPLAT_SEMANTIC_FREEZE_GEOMETRY", False),
+            support_weight=semantic_support_weight,
+            color_scale=semantic_color_scale,
+            position_scale=semantic_position_scale,
+            freeze_geometry=semantic_freeze_geometry,
+            mask_power=semantic_mask_power,
+            label_threshold=semantic_label_threshold,
+            background_floor=semantic_background_floor,
         )
+
+        view_mask_summary_limit = max(1, _env_int("EDITSPLAT_DEBUG_MASK_SUMMARY_LIMIT", 8))
+        view_mask_summaries = []
+        for view_idx in sorted(attn_masks_by_view.keys())[:view_mask_summary_limit]:
+            view_mask = attn_masks_by_view[view_idx]
+            view_mask_summaries.append(
+                {
+                    "view_idx": int(view_idx),
+                    "distribution": summarize_mask_distribution(view_mask),
+                    "full": summarize_mask(view_mask),
+                }
+            )
+
+        gaussian_mask_stats = {
+            "selected": summarize_mask_distribution(selected_mask),
+            "support": summarize_mask_distribution(support_mask),
+            "final": summarize_mask_distribution(semantic_guidance.mask),
+            "selected_full": summarize_mask(selected_mask),
+            "support_full": summarize_mask(support_mask),
+            "final_full": summarize_mask(semantic_guidance.mask),
+            "selected_labels": summarize_gaussian_mask(selected_mask, label_threshold=0.5),
+            "support_labels": summarize_gaussian_mask(support_mask, label_threshold=0.5),
+            "final_labels": summarize_gaussian_mask(semantic_guidance.mask, label_threshold=0.5),
+            "selected_support_overlap": summarize_mask_overlap(selected_mask, support_mask, threshold=0.5),
+            "selected_final_overlap": summarize_mask_overlap(selected_mask, semantic_guidance.mask, threshold=0.5),
+            "support_final_overlap": summarize_mask_overlap(support_mask, semantic_guidance.mask, threshold=0.5),
+            "view_mask_summaries": view_mask_summaries,
+            "view_mask_summary_limit": int(view_mask_summary_limit),
+            "semantic_guidance_enabled": bool(semantic_guidance_enabled),
+            "used_support": bool(semantic_guidance.used_support),
+            "gaussian_mask_mode": gaussian_mask_mode,
+            "gaussian_mask_depth_tolerance": float(gaussian_mask_depth_tolerance),
+            "gaussian_mask_chunk": int(gaussian_mask_chunk),
+            "skip_agt": bool(skip_agt),
+            "keep_support_when_skip_agt": bool(keep_support_when_skip_agt),
+            "support_weight": float(semantic_support_weight),
+            "color_scale": float(semantic_guidance.color_scale),
+            "position_scale": float(semantic_guidance.position_scale),
+            "requested_position_scale": float(semantic_position_scale),
+            "requested_color_scale": float(semantic_color_scale),
+            "semantic_bg_weight": float(semantic_bg_weight),
+            "semantic_mask_power": float(semantic_mask_power),
+            "semantic_label_threshold": float(semantic_label_threshold),
+            "semantic_background_floor": float(semantic_background_floor),
+            "semantic_freeze_geometry": bool(semantic_freeze_geometry),
+        }
+
+        print(
+            "[INFO] Gaussian mask stats: "
+            f"selected_mean={gaussian_mask_stats['selected']['mean']:.4f} "
+            f"support_mean={gaussian_mask_stats['support']['mean']:.4f} "
+            f"final_mean={gaussian_mask_stats['final']['mean']:.4f} "
+            f"final_ge_0_50={gaussian_mask_stats['final']['ge_0_50_ratio']:.4f} "
+            f"selected_support_iou={gaussian_mask_stats['selected_support_overlap']['iou']:.4f}"
+        )
+
+        gaussian_mask_stats_path = _write_gaussian_mask_stats(dataset.model_path, gaussian_mask_stats)
+        if gaussian_mask_stats_path is not None:
+            print(f"[INFO] Gaussian mask stats written to {gaussian_mask_stats_path}")
 
         gaussians.set_mask(semantic_guidance.mask)
         gaussians.apply_grad_mask(

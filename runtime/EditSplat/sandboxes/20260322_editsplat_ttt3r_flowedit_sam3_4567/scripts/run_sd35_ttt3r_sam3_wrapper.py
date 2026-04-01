@@ -50,6 +50,8 @@ for _cache_dir in (
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from utils.sam3_support import resolve_sam3_backend_request
+
 
 _MASK_BACKEND_INFO = {
     "requested": None,
@@ -1105,70 +1107,20 @@ def _load_legacy_langsam_adapter() -> object:
 
 
 def _load_mask_backend():
-    backend = os.environ.get("EDITSPLAT_MASK_BACKEND", "sam3").strip().lower()
-    if backend in {"stub", "full", "full-image", "full_image"}:
-        _set_mask_backend_info(requested=backend, effective="stub")
+    backend = resolve_sam3_backend_request(os.environ.get("EDITSPLAT_MASK_BACKEND", "sam3"))
+    if backend == "stub":
+        _set_mask_backend_info(requested="stub", effective="stub")
         return _FullImageMaskStub()
-    if backend in {"langsam", "legacy"}:
-        adapter = _LEGACY_LANGSAM_LOADER()
-        effective, detail = _normalize_langsam_effective(adapter)
-        _set_mask_backend_info(requested=backend, effective=effective, detail=detail)
+    try:
+        adapter = _Sam3MaskAdapter()
+        if adapter._processor is None:
+            raise RuntimeError("SAM3 adapter initialized without a live processor")
+        _set_mask_backend_info(requested="sam3", effective="sam3")
         return adapter
-    if backend in {"sam3", "auto", ""}:
-        sam3_error_detail: Optional[str] = None
-        # Attempt to create SAM3 adapter, but handle failure gracefully
-        try:
-            adapter = _Sam3MaskAdapter()
-            if adapter._processor is not None:
-                return adapter
-            else:
-                # If processor is None, it means SAM3 init failed
-                print("[INFO] SAM3 adapter creation failed, falling back to LangSAM")
-        except (ImportError, Exception) as e:
-            error_label = type(e).__name__
-            error_msg = str(e).strip().replace("\n", " ")
-            sam3_error_detail = f"{error_label}: {error_msg}"[:300]
-            print(f"[INFO] SAM3 unavailable ({e}), falling back to LangSAM")
-        
-        # If SAM3 failed, fall back to LangSAM
-        try:
-            legacy = _load_legacy_langsam_adapter()
-            effective, legacy_detail = _normalize_langsam_effective(legacy)
-            parts = []
-            if sam3_error_detail:
-                parts.append(f"sam3_error={sam3_error_detail}")
-            if legacy_detail:
-                parts.append(legacy_detail)
-            detail = "; ".join(parts) or None
-            _set_mask_backend_info(
-                requested="sam3",
-                effective=f"fallback:{effective}",
-                detail=detail,
-            )
-            return legacy
-        except Exception as fallback_error:
-            print(f"[ERROR] Both SAM3 and LangSAM failed: {fallback_error}")
-            # Last resort: return stub
-            fallback_label = type(fallback_error).__name__
-            fallback_msg = str(fallback_error).strip().replace("\n", " ")
-            fallback_detail = f"{fallback_label}: {fallback_msg}"[:200]
-            if sam3_error_detail:
-                fallback_detail = f"{sam3_error_detail}; lang_sam_error={fallback_detail}"
-            _set_mask_backend_info(
-                requested="sam3",
-                effective="fallback:stub",
-                detail=f"sam3_and_langsam_failed; {fallback_detail}",
-            )
-            return _FullImageMaskStub()
-    
-    print(f"[WARN] Unknown EDITSPLAT_MASK_BACKEND={backend}; falling back to legacy backend.")
-    adapter = _load_legacy_langsam_adapter()
-    _set_mask_backend_info(
-        requested=backend,
-        effective=f"fallback:{getattr(adapter, 'backend_name', 'legacy')}",
-        detail="unknown_backend_name",
-    )
-    return adapter
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {str(exc).strip().replace(chr(10), ' ')}"[:300]
+        _set_mask_backend_info(requested="sam3", effective="error:sam3", detail=detail)
+        raise RuntimeError(f"SAM3-only wrapper failed to initialize SAM3 backend: {detail}") from exc
 
 
 _LEGACY_WRAPPER.ref._load_langsam = _load_mask_backend  # type: ignore[attr-defined]

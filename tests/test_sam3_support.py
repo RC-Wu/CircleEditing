@@ -7,7 +7,11 @@ EDITSPLAT_ROOT = REPO_ROOT / "runtime" / "EditSplat"
 if str(EDITSPLAT_ROOT) not in sys.path:
     sys.path.insert(0, str(EDITSPLAT_ROOT))
 
-from utils.sam3_support import iter_mask_prompts, parse_hf_token_line  # noqa: E402
+from utils.sam3_support import (  # noqa: E402
+    iter_mask_prompts,
+    parse_hf_token_line,
+    resolve_sam3_backend_request,
+)
 
 
 class Sam3SupportTests(unittest.TestCase):
@@ -23,6 +27,18 @@ class Sam3SupportTests(unittest.TestCase):
         self.assertIn("person", prompts)
         self.assertIn("portrait", prompts)
         self.assertEqual(len(prompts), len(set(prompts)))
+
+    def test_resolve_sam3_backend_request_accepts_only_sam3_or_stub(self):
+        self.assertEqual(resolve_sam3_backend_request("sam3"), "sam3")
+        self.assertEqual(resolve_sam3_backend_request("auto"), "sam3")
+        self.assertEqual(resolve_sam3_backend_request(""), "sam3")
+        self.assertEqual(resolve_sam3_backend_request("full-image"), "stub")
+
+    def test_resolve_sam3_backend_request_rejects_langsam(self):
+        with self.assertRaises(ValueError):
+            resolve_sam3_backend_request("langsam")
+        with self.assertRaises(ValueError):
+            resolve_sam3_backend_request("legacy")
 
 
 if __name__ == "__main__":
