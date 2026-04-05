@@ -21,6 +21,7 @@ ROOT = Path(
 ).resolve()
 WRAPPER = ROOT / "scripts" / "run_sd35_ttt3r_sam3_wrapper.py"
 PYTHON = Path("/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python").resolve()
+CASEBANK_ROOT = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/dataset/dataset").resolve()
 DATASET_FACE = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/dataset/dataset/face").resolve()
 SOURCE_CKPT = (ROOT / "runtime" / "compat_pretrained_face" / "chkpnt7004.pth").resolve()
 HF_HOME = Path("/dev_vepfs/rc_wu/cache/hf_home_dev02").resolve()
@@ -144,9 +145,41 @@ def build_run_name(exp: Experiment, wave_name: str) -> str:
     return f"{wave_name}_{exp.case_name}_{exp.name}"
 
 
+def dataset_for_case(case_name: str) -> Path:
+    candidate = (CASEBANK_ROOT / case_name).resolve()
+    if candidate.exists():
+        return candidate
+    return DATASET_FACE
+
+
+def ensure_cfg_args(model_path: Path, source_path: Path) -> Path:
+    model_path.mkdir(parents=True, exist_ok=True)
+    cfg_path = model_path / "cfg_args"
+    if cfg_path.exists():
+        return cfg_path
+    cfg_text = (
+        "Namespace("
+        f"sh_degree=3, "
+        f"source_path={str(source_path.resolve())!r}, "
+        f"model_path={str(model_path.resolve())!r}, "
+        f"source_checkpoint={str(SOURCE_CKPT)!r}, "
+        f"images='images', "
+        f"resolution=-1, "
+        f"white_background=False, "
+        f"data_device='cuda', "
+        f"eval=True, "
+        f"render_items={['RGB', 'Depth', 'Edge', 'Normal', 'Curvature', 'Feature Map']!r}, "
+        f"view_shuffling=False"
+        ")\n"
+    )
+    cfg_path.write_text(cfg_text, encoding="utf-8")
+    return cfg_path
+
+
 def build_command(exp: Experiment, wave_name: str) -> List[str]:
     run_name = build_run_name(exp, wave_name)
     model_path = RESULTS_DIR / run_name
+    source_path = dataset_for_case(exp.case_name)
     cmd = [
         str(PYTHON),
         str(WRAPPER),
@@ -206,10 +239,8 @@ def build_command(exp: Experiment, wave_name: str) -> List[str]:
         "--fit_loss_mask_bg",
         str(exp.fit_loss_mask_bg),
         "--dump_intermediates",
-        "--disable_densify",
-        "--freeze_geometry",
         "-s",
-        str(DATASET_FACE),
+        str(source_path),
         "-m",
         str(model_path),
         "--source_checkpoint",
@@ -261,6 +292,12 @@ def build_command(exp: Experiment, wave_name: str) -> List[str]:
         "--mask_bg",
         str(exp.mask_bg),
     ]
+    if exp.disable_densify:
+        cmd.append("--disable_densify")
+    if exp.freeze_geometry:
+        cmd.append("--freeze_geometry")
+    if exp.freeze_opacity:
+        cmd.append("--freeze_opacity")
     if exp.include_gt_view:
         cmd.append("--ttt3r_include_gt_view")
     else:
@@ -271,6 +308,9 @@ def build_command(exp: Experiment, wave_name: str) -> List[str]:
 def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
     run_name = build_run_name(exp, wave_name)
     log_path = LOG_DIR / f"{run_name}.log"
+    model_path = RESULTS_DIR / run_name
+    source_path = dataset_for_case(exp.case_name)
+    ensure_cfg_args(model_path=model_path, source_path=source_path)
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = str(exp.gpu)
     env["HF_HOME"] = str(HF_HOME)
@@ -306,7 +346,7 @@ def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
         "gpu": exp.gpu,
         "pid": proc.pid,
         "log_path": str(log_path),
-        "model_path": str(RESULTS_DIR / run_name),
+        "model_path": str(model_path),
         "experiment": asdict(exp),
     }
 
@@ -317,7 +357,9 @@ def collect_summary(runs: List[Dict[str, object]], wave_name: str) -> Path:
         model_path = Path(str(item["model_path"]))
         meta_path = model_path / "ttt3r_proximal_wrapper_meta.json"
         mask_meta_path = model_path / "mask_backend_info.json"
-        mfg_stats_path = model_path / "debug_intermediates" / "mfg_edit" / "view000" / "stats.json"
+        semantic_stats_path = model_path / "debug_intermediates" / "semantic_guidance" / "gaussian_mask_stats.json"
+        mfg_root = model_path / "debug_intermediates" / "mfg_edit"
+        mfg_view_stats = sorted(mfg_root.glob("view*/stats.json"))
         row: Dict[str, object] = {
             "run_name": item["run_name"],
             "gpu": item["gpu"],
@@ -325,7 +367,9 @@ def collect_summary(runs: List[Dict[str, object]], wave_name: str) -> Path:
             "model_path": item["model_path"],
             "meta_exists": meta_path.exists(),
             "mask_meta_exists": mask_meta_path.exists(),
-            "mfg_stats_exists": mfg_stats_path.exists(),
+            "semantic_stats_exists": semantic_stats_path.exists(),
+            "mfg_stats_exists": bool(mfg_view_stats),
+            "render_cfg_exists": (model_path / "cfg_args").exists(),
         }
         if meta_path.exists():
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -342,7 +386,16 @@ def collect_summary(runs: List[Dict[str, object]], wave_name: str) -> Path:
                 "schedule_power",
             ):
                 row[key] = ttt3r_cfg.get(key)
-            for key in ("head_k", "fit_loss_mask_mode", "fit_loss_mask_bg"):
+            for key in (
+                "head_k",
+                "fit_loss_mask_mode",
+                "fit_loss_mask_bg",
+                "disable_densify",
+                "freeze_geometry",
+                "freeze_opacity",
+                "max_optimizer_steps",
+                "optimizer_lr_scale",
+            ):
                 row[key] = meta.get(key)
         if mask_meta_path.exists():
             mask_meta = json.loads(mask_meta_path.read_text(encoding="utf-8"))
@@ -350,11 +403,31 @@ def collect_summary(runs: List[Dict[str, object]], wave_name: str) -> Path:
                 row["mask_backend_requested"] = mask_meta.get("requested")
                 row["mask_backend_effective"] = mask_meta.get("effective")
                 row["mask_backend_detail"] = mask_meta.get("detail")
-        if mfg_stats_path.exists():
-            mfg_stats = json.loads(mfg_stats_path.read_text(encoding="utf-8"))
-            for key in ("proxy_rgb", "geo_weight", "edit_weight", "preserve_weight"):
-                if key in mfg_stats and isinstance(mfg_stats[key], dict):
-                    row[f"{key}_mean"] = mfg_stats[key].get("mean")
+        if semantic_stats_path.exists():
+            semantic_stats = json.loads(semantic_stats_path.read_text(encoding="utf-8"))
+            final_labels = semantic_stats.get("final_labels", {}) if isinstance(semantic_stats, dict) else {}
+            if isinstance(final_labels, dict):
+                row["semantic_fg_ratio"] = final_labels.get("foreground_ratio")
+                row["semantic_fg_count"] = final_labels.get("foreground_count")
+            selected_final = semantic_stats.get("selected_final_overlap", {}) if isinstance(semantic_stats, dict) else {}
+            if isinstance(selected_final, dict):
+                row["semantic_selected_final_iou"] = selected_final.get("iou")
+        for stats_path in mfg_view_stats:
+            view_name = stats_path.parent.name
+            view_stats = json.loads(stats_path.read_text(encoding="utf-8"))
+            for key in ("mfg_output", "sam3_mask", "mask"):
+                if key in view_stats and isinstance(view_stats[key], dict):
+                    row[f"{view_name}_{key}_mean"] = view_stats[key].get("mean")
+            step_dirs = sorted([path for path in mfg_root.glob(f"{view_name}_step*") if path.is_dir()])
+            if step_dirs:
+                first_stats = json.loads((step_dirs[0] / "stats.json").read_text(encoding="utf-8"))
+                for key in ("proxy_rgb", "geo_weight", "edit_weight", "preserve_weight"):
+                    if key in first_stats and isinstance(first_stats[key], dict):
+                        row[f"{view_name}_{key}_mean"] = first_stats[key].get("mean")
+                last_stats = json.loads((step_dirs[-1] / "stats.json").read_text(encoding="utf-8"))
+                for key in ("latent_edit_mass", "latent_preserve_mass"):
+                    if key in last_stats and isinstance(last_stats[key], dict):
+                        row[f"{view_name}_{key}"] = last_stats[key].get("mean")
         rows.append(row)
 
     out_path = SUMMARY_DIR / f"{wave_name}_summary.json"
