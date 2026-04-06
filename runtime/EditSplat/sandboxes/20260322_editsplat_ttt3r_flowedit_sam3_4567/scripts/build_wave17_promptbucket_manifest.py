@@ -545,7 +545,7 @@ def build_manifest() -> list[dict]:
         prompt_cfg = PROMPTS[prompt_key]
         regime_cfg = REGIMES[regime_key]
         exp = deepcopy(BASE_EXP)
-        exp.update(prompt_cfg)
+        exp.update({key: value for key, value in prompt_cfg.items() if key != "bucket"})
         exp.update(regime_cfg["exp"])
         env = deepcopy(BASE_ENV)
         env.update(regime_cfg["env"])
