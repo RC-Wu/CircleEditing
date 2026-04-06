@@ -49,6 +49,7 @@ BASE_ENV = {
 
 PROMPTS = {
     "goldmask_structured": {
+        "flow_tar_guidance_scale": 6.75,
         "target_prompt": (
             "the same man in the same pose and camera framing, same background and clothes, "
             "now wearing a rigid ornate reflective gold face mask with crisp metallic edges and visible structure"
@@ -60,6 +61,7 @@ PROMPTS = {
         "bucket": "fullface_main",
     },
     "bandage_wrap": {
+        "flow_tar_guidance_scale": 6.75,
         "target_prompt": (
             "the same man in the same pose and camera framing, same background and clothes, "
             "with his face partially wrapped in layered off-white medical bandages around the cheeks and forehead"
@@ -71,6 +73,7 @@ PROMPTS = {
         "bucket": "fullface_main",
     },
     "cyborg_visor": {
+        "flow_tar_guidance_scale": 6.78,
         "target_prompt": (
             "the same man in the same pose and camera framing, same background and clothes, "
             "wearing a rigid dark metallic cybernetic visor and segmented faceplate with hard mechanical edges"
@@ -82,6 +85,7 @@ PROMPTS = {
         "bucket": "fullface_main",
     },
     "marble_bust": {
+        "flow_tar_guidance_scale": 6.72,
         "target_prompt": (
             "the same man in the same pose and camera framing, same background and clothes, "
             "with his face surface transformed into carved white marble with stone texture and sculpted features"
@@ -298,6 +302,42 @@ REGIMES = {
         },
         "notes": "propagation-barrier open branch",
     },
+    "open_semboost_softfit055": {
+        "exp": {
+            "prox_strength": 0.61,
+            "preserve_strength": 0.05,
+            "edit_boost": 1.36,
+            "preserve_boost": 0.88,
+            "schedule_power": 1.26,
+            "optimizer_lr_scale": 1.04,
+            "max_optimizer_steps": 560,
+            "max_train_views": 6,
+            "max_gaussians": 120000,
+            "disable_densify": False,
+            "freeze_geometry": False,
+        },
+        "env": {
+            "EDITSPLAT_SAM3_FIT_ALPHA": "0.55",
+            "EDITSPLAT_SAM3_CONFIDENCE": "0.08",
+            "EDITSPLAT_SAM3_CONFIDENCE_FALLBACKS": "0.12,0.08,0.04,0.0",
+            "EDITSPLAT_BINARIZE_SUPPORT_MASK": "0",
+            "EDITSPLAT_ELITE_SUPPORT_ALPHA": "0.96",
+            "EDITSPLAT_ELITE_EDIT_ALPHA": "0.16",
+            "EDITSPLAT_ELITE_CONFIDENCE_ALPHA": "0.99",
+            "EDITSPLAT_ELITE_SCALE_MIN": "0.95",
+            "EDITSPLAT_ELITE_SCALE_MAX": "2.04",
+            "EDITSPLAT_ENABLE_SEMANTIC_GS_GUIDANCE": "1",
+            "EDITSPLAT_ENABLE_SEMANTIC_LOSS_MASK": "1",
+            "EDITSPLAT_SEMANTIC_SUPPORT_WEIGHT": "0.84",
+            "EDITSPLAT_SEMANTIC_COLOR_SCALE": "1.38",
+            "EDITSPLAT_SEMANTIC_POSITION_SCALE": "1.18",
+            "EDITSPLAT_SEMANTIC_MASK_POWER": "1.82",
+            "EDITSPLAT_SEMANTIC_LABEL_THRESHOLD": "0.22",
+            "EDITSPLAT_SEMANTIC_LABEL_BG_FLOOR": "0.00",
+            "EDITSPLAT_SEMANTIC_BG_WEIGHT": "0.04",
+        },
+        "notes": "soft-fit support-gating probe",
+    },
     "open_semhammer_probe": {
         "exp": {
             "conf_power": 1.18,
@@ -492,10 +532,10 @@ JOB_SPECS = [
     ("beard", "open_semboost_gsrelax"),
     ("goldmask_structured", "locked_semtight_ctrl"),
     ("goldmask_structured", "open_semboost_gsrelax"),
-    ("goldmask_structured", "open_semhammer_probe"),
+    ("goldmask_structured", "open_semboost_softfit055"),
     ("bandage_wrap", "locked_semtight_ctrl"),
     ("bandage_wrap", "open_semboost_gsrelax"),
-    ("bandage_wrap", "open_semhammer_probe"),
+    ("bandage_wrap", "open_semboost_softfit055"),
 ]
 
 

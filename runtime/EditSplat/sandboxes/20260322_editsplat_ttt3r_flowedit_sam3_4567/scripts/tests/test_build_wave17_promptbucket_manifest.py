@@ -27,7 +27,7 @@ class Wave17PromptBucketManifestTests(unittest.TestCase):
         names = [item["name"] for item in manifest]
 
         self.assertEqual(sum("locked_semtight_ctrl" in name for name in names), 2)
-        self.assertEqual(sum("open_semhammer_probe" in name for name in names), 2)
+        self.assertEqual(sum("open_semboost_softfit055" in name for name in names), 2)
 
         fullface_main = {
             "goldmask_structured_open_semboost_core",
@@ -58,10 +58,10 @@ class Wave17PromptBucketManifestTests(unittest.TestCase):
         barrier_probe = {
             "goldmask_structured_locked_semtight_ctrl",
             "goldmask_structured_open_semboost_gsrelax",
-            "goldmask_structured_open_semhammer_probe",
+            "goldmask_structured_open_semboost_softfit055",
             "bandage_wrap_locked_semtight_ctrl",
             "bandage_wrap_open_semboost_gsrelax",
-            "bandage_wrap_open_semhammer_probe",
+            "bandage_wrap_open_semboost_softfit055",
         }
         self.assertTrue(barrier_probe.issubset(set(names)))
 
