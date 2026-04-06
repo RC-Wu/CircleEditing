@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=/dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567
-PY=/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python
-HELPER="$ROOT/scripts/build_fixed_gpu_overnight_queue.py"
-LAUNCHER="$ROOT/scripts/launch_dev01_ttt3r_consistency_wave.py"
-MANIFEST="$ROOT/scripts/manifests/20260406_wave17_promptbucket_queue.json"
-QUEUE_ROOT=/dev_vepfs/rc_wu/_codex_staging/ttt3r_overnight
-WAVE_NAME=20260406_wave17_promptbucket_controller_queue
+ROOT=${ROOT:-/dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567}
+PY=${PY:-/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python}
+HELPER=${HELPER:-"$ROOT/scripts/build_fixed_gpu_overnight_queue.py"}
+LAUNCHER=${LAUNCHER:-"$ROOT/scripts/launch_dev01_ttt3r_consistency_wave.py"}
+MANIFEST=${MANIFEST:-"$ROOT/scripts/manifests/20260406_wave17_promptbucket_queue.json"}
+QUEUE_ROOT=${QUEUE_ROOT:-/dev_vepfs/rc_wu/_codex_staging/ttt3r_overnight}
+WAVE_NAME=${WAVE_NAME:-20260406_wave17_promptbucket_controller_queue}
 WAVE_ROOT="$QUEUE_ROOT/$WAVE_NAME"
 LOG_DIR="$WAVE_ROOT/controller_launcher_logs"
 
