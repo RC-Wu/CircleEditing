@@ -56,6 +56,7 @@ from utils.ttt3r_elite_blite import (
     apply_elite_correction_weights,
     update_source_canonical_prior,
 )
+from utils.canonical_edit_field import build_canonical_target, blend_targets
 
 
 _MASK_BACKEND_INFO = {
@@ -1440,6 +1441,68 @@ def _patch_elite_confidence_and_blite_prior() -> None:
     if orig_sd3_edit is None or getattr(orig_sd3_edit, "_editsplat_elite_blite_patch", False):
         return
 
+    def _build_canonical_proxy_pil(
+        *,
+        image_pil: Image.Image,
+        proxy_pil: Image.Image,
+        runtime,
+        idx: int,
+        support_mask: Optional[torch.Tensor],
+        edit_mask: torch.Tensor,
+        confidence_weight: torch.Tensor,
+    ) -> tuple[Image.Image, Optional[dict]]:
+        if not _env_flag("EDITSPLAT_ENABLE_CANONICAL_CARRIER", False):
+            return proxy_pil, None
+
+        src_cached = getattr(runtime, "source_image_cache", {}).get(idx)
+        if isinstance(src_cached, torch.Tensor):
+            src_tensor = src_cached.to(dtype=torch.float32)
+        else:
+            src_tensor = _LEGACY_WRAPPER._pil_to_tensor01(image_pil).to(dtype=torch.float32)
+        proxy_tensor = _LEGACY_WRAPPER._pil_to_tensor01(proxy_pil).to(dtype=torch.float32)
+
+        carrier_mask = edit_mask.detach().float()
+        if carrier_mask.ndim == 3:
+            carrier_mask = carrier_mask.unsqueeze(0)
+        if isinstance(support_mask, torch.Tensor):
+            sam_support = support_mask.detach().float()
+            if sam_support.ndim == 3:
+                sam_support = sam_support.unsqueeze(0)
+            carrier_mask = torch.maximum(carrier_mask, sam_support)
+        confidence = confidence_weight.detach().float()
+        if confidence.ndim == 3:
+            confidence = confidence.unsqueeze(0)
+        carrier_mask = (carrier_mask * confidence).clamp(0.0, 1.0)
+
+        residual_clamp = _env_float("EDITSPLAT_CANONICAL_RESIDUAL_CLAMP", 0.0)
+        residual_limit = residual_clamp if residual_clamp > 0.0 else None
+        canonical_target, canonical_residual = build_canonical_target(
+            gt_view=src_tensor,
+            reprojected_edit=proxy_tensor,
+            reprojected_source=src_tensor,
+            residual_clamp=residual_limit,
+        )
+        canonical_target = torch.as_tensor(canonical_target, dtype=src_tensor.dtype)
+        canonical_residual = torch.as_tensor(canonical_residual, dtype=src_tensor.dtype)
+        carrier_proxy = (src_tensor + canonical_residual * carrier_mask).clamp(0.0, 1.0)
+        blended_proxy = blend_targets(
+            flow_target=proxy_tensor,
+            canonical_target=carrier_proxy,
+            alpha=_env_float("EDITSPLAT_CANONICAL_BLEND_ALPHA", 0.60),
+        )
+        blended_proxy = torch.as_tensor(blended_proxy, dtype=src_tensor.dtype)
+
+        debug_payload = {
+            "source": src_tensor,
+            "proxy_input": proxy_tensor,
+            "canonical_target": canonical_target,
+            "canonical_residual": canonical_residual,
+            "carrier_mask": carrier_mask,
+            "carrier_proxy": carrier_proxy,
+            "proxy_blended": blended_proxy,
+        }
+        return _LEGACY_WRAPPER._tensor_to_pil01(blended_proxy), debug_payload
+
     def _sd3_edit_with_elite_blite(
         adapter,
         image_pil,
@@ -1531,10 +1594,40 @@ def _patch_elite_confidence_and_blite_prior() -> None:
                         print(f"[B-lite] source canonical prior summary path={dump_path}")
                         runtime._editsplat_blite_prior_logged = True
 
+        proxy_pil_for_edit, carrier_debug = _build_canonical_proxy_pil(
+            image_pil=image_pil,
+            proxy_pil=proxy_pil,
+            runtime=runtime,
+            idx=idx,
+            support_mask=support_mask,
+            edit_mask=edit_mask,
+            confidence_weight=confidence_weight,
+        )
+        if carrier_debug is not None and hasattr(runtime, "dump_stage"):
+            runtime.dump_stage(
+                "mfg_edit",
+                {
+                    "canonical_source": carrier_debug["source"],
+                    "canonical_proxy_input": carrier_debug["proxy_input"],
+                    "canonical_target": carrier_debug["canonical_target"],
+                    "canonical_residual": carrier_debug["canonical_residual"],
+                    "canonical_mask": carrier_debug["carrier_mask"],
+                    "canonical_proxy": carrier_debug["carrier_proxy"],
+                    "canonical_proxy_blended": carrier_debug["proxy_blended"],
+                },
+            )
+            if not getattr(runtime, "_editsplat_blite_carrier_logged", False):
+                print(
+                    "[B-lite] canonical carrier enabled: "
+                    f"blend_alpha={_env_float('EDITSPLAT_CANONICAL_BLEND_ALPHA', 0.60):.3f} "
+                    f"residual_clamp={_env_float('EDITSPLAT_CANONICAL_RESIDUAL_CLAMP', 0.0):.3f}"
+                )
+                runtime._editsplat_blite_carrier_logged = True
+
         return orig_sd3_edit(
             adapter=adapter,
             image_pil=image_pil,
-            proxy_pil=proxy_pil,
+            proxy_pil=proxy_pil_for_edit,
             src_prompt=src_prompt,
             tar_prompt=tar_prompt,
             params=params,
