@@ -16,14 +16,18 @@ def utc_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
 
-ROOT = Path(
-    "/dev_vepfs/rc_wu/_codex_staging/20260411_circleediting_carrier_probe/runtime/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567"
+PROJECT_ROOT = Path(
+    "/dev_vepfs/rc_wu/_codex_staging/20260411_circleediting_carrier_probe/runtime/EditSplat"
 ).resolve()
-WRAPPER = ROOT / "scripts" / "run_sd35_ttt3r_sam3_wrapper.py"
+SANDBOX_ROOT = (
+    PROJECT_ROOT / "sandboxes" / "20260322_editsplat_ttt3r_flowedit_sam3_4567"
+).resolve()
+ROOT = PROJECT_ROOT
+WRAPPER = SANDBOX_ROOT / "scripts" / "run_sd35_ttt3r_sam3_wrapper.py"
 PYTHON = Path("/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python").resolve()
 CASEBANK_ROOT = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/dataset/dataset").resolve()
 DATASET_FACE = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/dataset/dataset/face").resolve()
-SOURCE_CKPT = (ROOT / "runtime" / "compat_pretrained_face" / "chkpnt7004.pth").resolve()
+SOURCE_CKPT = (SANDBOX_ROOT / "runtime" / "compat_pretrained_face" / "chkpnt7004.pth").resolve()
 HF_HOME = Path("/dev_vepfs/rc_wu/cache/hf_home_dev02").resolve()
 HF_TOKEN = Path("/dev_vepfs/rc_wu/.huggingface/token").resolve()
 SAM3_PT = (
@@ -34,9 +38,9 @@ SAM3_PT = (
     / "3c879f39826c281e95690f02c7821c4de09afae7"
     / "sam3.pt"
 ).resolve()
-LOG_DIR = ROOT / "logs"
-RESULTS_DIR = ROOT / "results"
-SUMMARY_DIR = ROOT / "results" / "summaries"
+LOG_DIR = SANDBOX_ROOT / "logs"
+RESULTS_DIR = SANDBOX_ROOT / "results"
+SUMMARY_DIR = SANDBOX_ROOT / "results" / "summaries"
 
 
 @dataclass
