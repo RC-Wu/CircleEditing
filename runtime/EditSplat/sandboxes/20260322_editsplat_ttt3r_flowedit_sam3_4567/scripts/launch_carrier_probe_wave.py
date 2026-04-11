@@ -41,6 +41,8 @@ SAM3_PT = (
 LOG_DIR = SANDBOX_ROOT / "logs"
 RESULTS_DIR = SANDBOX_ROOT / "results"
 SUMMARY_DIR = SANDBOX_ROOT / "results" / "summaries"
+BASE_MODEL_ID = "cocktailpeanut/xulf-s"
+DEFAULT_HF_OFFLINE = "1"
 
 
 @dataclass
@@ -309,21 +311,18 @@ def build_command(exp: Experiment, wave_name: str) -> List[str]:
     return cmd
 
 
-def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
-    run_name = build_run_name(exp, wave_name)
-    log_path = LOG_DIR / f"{run_name}.log"
-    model_path = RESULTS_DIR / run_name
-    source_path = dataset_for_case(exp.case_name)
-    ensure_cfg_args(model_path=model_path, source_path=source_path)
+def build_launch_env(exp: Experiment) -> Dict[str, str]:
     env = os.environ.copy()
+    offline = str(env.get("EDITSPLAT_HF_OFFLINE", DEFAULT_HF_OFFLINE))
     env["CUDA_VISIBLE_DEVICES"] = str(exp.gpu)
     env["HF_HOME"] = str(HF_HOME)
     env["HF_HUB_CACHE"] = str(HF_HOME / "hub")
-    env["HF_HUB_OFFLINE"] = "1"
-    env["TRANSFORMERS_OFFLINE"] = "1"
+    env["HF_HUB_OFFLINE"] = offline
+    env["TRANSFORMERS_OFFLINE"] = offline
     env["EDITSPLAT_HF_HOME"] = str(HF_HOME)
     env["EDITSPLAT_HF_TOKEN_FILE"] = str(HF_TOKEN)
     env["EDITSPLAT_SAM3_CHECKPOINT_PATH"] = str(SAM3_PT)
+    env["EDITSPLAT_BASE_MODEL_ID"] = str(env.get("EDITSPLAT_BASE_MODEL_ID", BASE_MODEL_ID))
     env["EDITSPLAT_MASK_BACKEND"] = str(exp.mask_backend)
     env["EDITSPLAT_SAM3_DEVICE"] = "cpu"
     env["EDITSPLAT_EXTERNAL_BACKEND_ONLY"] = "1"
@@ -335,7 +334,16 @@ def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
     env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     if exp.dump_intermediates:
         env["EDITSPLAT_DUMP_INTERMEDIATES"] = "1"
+    return env
 
+
+def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
+    run_name = build_run_name(exp, wave_name)
+    log_path = LOG_DIR / f"{run_name}.log"
+    model_path = RESULTS_DIR / run_name
+    source_path = dataset_for_case(exp.case_name)
+    ensure_cfg_args(model_path=model_path, source_path=source_path)
+    env = build_launch_env(exp)
     cmd = build_command(exp=exp, wave_name=wave_name)
     with open(log_path, "w", encoding="utf-8") as log_file:
         proc = subprocess.Popen(
