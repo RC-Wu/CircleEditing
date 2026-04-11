@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
+from storage_guardrails import enforce_storage_guardrails
+
 
 def utc_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -342,6 +344,7 @@ def launch_one(exp: Experiment, wave_name: str) -> Dict[str, object]:
     log_path = LOG_DIR / f"{run_name}.log"
     model_path = RESULTS_DIR / run_name
     source_path = dataset_for_case(exp.case_name)
+    enforce_storage_guardrails([LOG_DIR, RESULTS_DIR])
     ensure_cfg_args(model_path=model_path, source_path=source_path)
     env = build_launch_env(exp)
     cmd = build_command(exp=exp, wave_name=wave_name)

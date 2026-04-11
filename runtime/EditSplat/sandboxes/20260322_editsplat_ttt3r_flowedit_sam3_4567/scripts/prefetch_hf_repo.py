@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import Callable, List
 
+from storage_guardrails import enforce_storage_guardrails
+
 
 DEFAULT_CACHE_DIR = Path("/dev_vepfs/rc_wu/cache/hf_home_dev02/hub")
 DEFAULT_REPO_ID = "cocktailpeanut/xulf-s"
@@ -34,6 +36,7 @@ def prefetch_repo(
     token: str | None,
     downloader=None,
 ) -> Path:
+    enforce_storage_guardrails([repo_cache_dir(cache_dir=cache_dir, repo_id=repo_id)])
     if downloader is None:
         try:
             from huggingface_hub import snapshot_download as downloader
@@ -51,6 +54,7 @@ def prefetch_repo(
                     max_workers=max_workers,
                 )
             )
+            enforce_storage_guardrails([repo_cache_dir(cache_dir=cache_dir, repo_id=repo_id)])
             pending = incomplete_blobs(cache_dir=cache_dir, repo_id=repo_id)
             if not pending:
                 return snapshot_path

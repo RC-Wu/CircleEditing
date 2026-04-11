@@ -16,6 +16,8 @@ SCRIPT_PATH = (
     / "scripts"
     / "prefetch_hf_repo.py"
 )
+if str(SCRIPT_PATH.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("prefetch_hf_repo", SCRIPT_PATH)
 if SPEC is None or SPEC.loader is None:  # pragma: no cover
     raise RuntimeError(f"Unable to import script from {SCRIPT_PATH}")
@@ -73,6 +75,27 @@ class PrefetchHfRepoTests(unittest.TestCase):
             self.assertEqual(mocked.call_args.kwargs["cache_dir"], str(cache_dir))
             self.assertEqual(mocked.call_args.kwargs["max_workers"], 1)
             self.assertTrue(mocked.call_args.kwargs["resume_download"])
+
+    def test_prefetch_repo_blocks_when_storage_guardrail_trips(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache_dir = Path(tmp_dir)
+            downloader = mock.Mock()
+            with mock.patch.object(
+                prefetch_hf_repo,
+                "enforce_storage_guardrails",
+                side_effect=RuntimeError("storage guardrail tripped"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "storage guardrail tripped"):
+                    prefetch_hf_repo.prefetch_repo(
+                        repo_id="cocktailpeanut/xulf-s",
+                        cache_dir=cache_dir,
+                        retries=1,
+                        retry_sleep=0.0,
+                        max_workers=1,
+                        token=None,
+                        downloader=downloader,
+                    )
+            downloader.assert_not_called()
 
 
 if __name__ == "__main__":
