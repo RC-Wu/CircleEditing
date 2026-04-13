@@ -29,3 +29,9 @@
 - Each round writes a reproducible status JSON, log path, and result directory.
 - Monitor writes a living note into AgentDoc and a mirrored project-side note in the runnable tree.
 - Final review must inspect rendered visual artifacts before drawing conclusions.
+
+## Live Status
+
+- `retry3` cleared the earlier runtime failures: the first four status JSONs now report `returncode=0`.
+- Direct visual review of the completed `panel_final_grid` outputs still shows semantic collapse: no convincing bandage or gold-mask structure appears, only mild blur / drift.
+- The panel exporter is also incomplete for these runs: the lower half of the final grids is largely black, so panel generation itself needs follow-up debugging before relying on the collage format.

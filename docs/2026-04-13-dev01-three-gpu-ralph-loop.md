@@ -32,3 +32,8 @@ Operational rules:
 - Keep `HF_HUB_OFFLINE=1` unless a targeted fix explicitly requires otherwise.
 - Delete transient point clouds/debug step dumps through queue GC after panel generation.
 - Mirror conclusions later into AgentDoc + project docs + Obsidian note after one line completes.
+
+Live status update:
+- The original GPU1 `resolution=8` queue head was invalid for validation and was replaced in-flight with `resolution=320`.
+- `dev-intern-01` GPU2 was released after another task claimed it; do not schedule further work on GPU2.
+- Remaining carrier-stability jobs from the old GPU2 line must be rescheduled onto a later free slot instead of relaunched on GPU2.
