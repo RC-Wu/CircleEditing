@@ -28,6 +28,7 @@ if str(MULTI2D) not in sys.path:
     sys.path.insert(0, str(MULTI2D))
 
 from utils.carrier_baseline import build_a_baseline_carrier
+from utils.semantic_guidance import align_spatial_mask_to_target
 
 
 def _ensure_imagereward_stub() -> None:
@@ -797,13 +798,14 @@ def patch_fit_loss_control(
         )
         if mask is None:
             return orig_l1_loss(network_output, gt)
-        mask_dev = mask.to(device=network_output.device, dtype=network_output.dtype)
-        if mask_dev.ndim == 3:
-            mask_dev = mask_dev.unsqueeze(0)
         if network_output.ndim == 3:
             network_output = network_output.unsqueeze(0)
         if gt.ndim == 3:
             gt = gt.unsqueeze(0)
+        mask_dev = align_spatial_mask_to_target(mask, network_output).to(
+            device=network_output.device,
+            dtype=network_output.dtype,
+        )
         target_device = gt.device
         gt = gt.to(device=network_output.device, dtype=network_output.dtype)
         diff = (network_output - gt).abs()
@@ -853,9 +855,7 @@ def patch_fit_loss_control(
                     y = y.unsqueeze(0)
                 x = x.to(device=target_device, dtype=x.dtype)
                 y = y.to(device=target_device, dtype=x.dtype)
-                mask_dev = mask.to(device=target_device, dtype=x.dtype)
-                if mask_dev.ndim == 3:
-                    mask_dev = mask_dev.unsqueeze(0)
+                mask_dev = align_spatial_mask_to_target(mask, x).to(device=target_device, dtype=x.dtype)
                 x_masked = x * mask_dev + y.detach() * (1.0 - mask_dev)
                 y_masked = y
                 if hasattr(base_loss, "to"):

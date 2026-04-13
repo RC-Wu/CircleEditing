@@ -58,6 +58,22 @@ def _blend_masks(selected_mask: Any, support_mask: Any, support_weight: float) -
     return blended
 
 
+def align_spatial_mask_to_target(mask: Any, target: Any) -> Any:
+    if not _is_torch_tensor(mask) or not _is_torch_tensor(target):
+        return mask
+
+    mask_t = mask.detach().clone().to(dtype=torch.float32)
+    if mask_t.ndim == 2:
+        mask_t = mask_t.unsqueeze(0).unsqueeze(0)
+    elif mask_t.ndim == 3:
+        mask_t = mask_t.unsqueeze(0)
+
+    target_size = tuple(int(v) for v in target.shape[-2:])
+    if tuple(mask_t.shape[-2:]) != target_size:
+        mask_t = F.interpolate(mask_t, size=target_size, mode="bilinear", align_corners=False)
+    return mask_t.clamp(0.0, 1.0)
+
+
 def build_semantic_guidance(
     selected_mask: Any,
     support_mask: Optional[Any],

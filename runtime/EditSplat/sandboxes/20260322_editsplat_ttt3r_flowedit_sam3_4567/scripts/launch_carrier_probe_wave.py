@@ -18,6 +18,25 @@ def utc_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
 
+def default_casebank_root() -> Path:
+    return Path(
+        os.environ.get(
+            "EDITSPLAT_CASEBANK_ROOT",
+            "/dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset",
+        )
+    ).resolve()
+
+
+def default_dataset_face(casebank_root: Path | None = None) -> Path:
+    root = casebank_root or default_casebank_root()
+    return Path(
+        os.environ.get(
+            "EDITSPLAT_DATASET_FACE",
+            str(root / "face"),
+        )
+    ).resolve()
+
+
 PROJECT_ROOT = Path(
     "/dev_vepfs/rc_wu/_codex_staging/20260411_circleediting_carrier_probe/runtime/EditSplat"
 ).resolve()
@@ -27,8 +46,8 @@ SANDBOX_ROOT = (
 ROOT = PROJECT_ROOT
 WRAPPER = SANDBOX_ROOT / "scripts" / "run_sd35_ttt3r_sam3_wrapper.py"
 PYTHON = Path("/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python").resolve()
-CASEBANK_ROOT = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/dataset/dataset").resolve()
-DATASET_FACE = Path("/dev_vepfs/rc_wu/_codex_staging/20260401_a_casebank_dev01/dataset/dataset/face").resolve()
+CASEBANK_ROOT = default_casebank_root()
+DATASET_FACE = default_dataset_face(CASEBANK_ROOT)
 SOURCE_CKPT = (SANDBOX_ROOT / "runtime" / "compat_pretrained_face" / "chkpnt7004.pth").resolve()
 HF_HOME = Path("/dev_vepfs/rc_wu/cache/hf_home_dev02").resolve()
 HF_TOKEN = Path("/dev_vepfs/rc_wu/.huggingface/token").resolve()

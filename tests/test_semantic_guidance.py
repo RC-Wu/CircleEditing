@@ -2,12 +2,18 @@ import sys
 import unittest
 from pathlib import Path
 
+try:
+    import torch
+except ModuleNotFoundError:  # pragma: no cover
+    torch = None
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EDITSPLAT_ROOT = REPO_ROOT / "runtime" / "EditSplat"
 if str(EDITSPLAT_ROOT) not in sys.path:
     sys.path.insert(0, str(EDITSPLAT_ROOT))
 
 from utils.semantic_guidance import (  # noqa: E402
+    align_spatial_mask_to_target,
     build_semantic_guidance,
     expand_loss_guidance_mask,
     normalize_gaussian_support_mask,
@@ -79,6 +85,26 @@ class SemanticGuidanceTests(unittest.TestCase):
     def test_loss_guidance_mask_keeps_background_floor(self):
         result = expand_loss_guidance_mask(mask=[0.0, 1.0, 0.5], background_weight=0.1)
         self.assertEqual(result, [0.1, 1.0, 0.55])
+
+    @unittest.skipIf(torch is None, "torch is required for spatial mask alignment tests")
+    def test_align_spatial_mask_to_target_resizes_2d_mask_for_low_res_render(self):
+        mask = torch.ones((1, 512, 512), dtype=torch.float32)
+        target = torch.zeros((1, 3, 64, 64), dtype=torch.float32)
+
+        aligned = align_spatial_mask_to_target(mask, target)
+
+        self.assertEqual(tuple(aligned.shape), (1, 1, 64, 64))
+        self.assertTrue(torch.allclose(aligned, torch.ones((1, 1, 64, 64), dtype=torch.float32)))
+
+    @unittest.skipIf(torch is None, "torch is required for spatial mask alignment tests")
+    def test_align_spatial_mask_to_target_preserves_matching_resolution(self):
+        mask = torch.full((1, 1, 64, 64), 0.25, dtype=torch.float32)
+        target = torch.zeros((1, 3, 64, 64), dtype=torch.float32)
+
+        aligned = align_spatial_mask_to_target(mask, target)
+
+        self.assertEqual(tuple(aligned.shape), (1, 1, 64, 64))
+        self.assertTrue(torch.allclose(aligned, mask))
 
     def test_normalize_gaussian_support_mask_handles_zero_counts(self):
         result = normalize_gaussian_support_mask(
