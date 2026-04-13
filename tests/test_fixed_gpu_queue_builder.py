@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,91 @@ SPEC.loader.exec_module(build_fixed_gpu_overnight_queue)
 
 
 class BuildFixedGpuQueueTests(unittest.TestCase):
+    def test_gc_job_recovers_launcher_from_existing_slot_script(self):
+        tmp_path = Path(tempfile.mkdtemp(prefix="queue_builder_test_"))
+        self.addCleanup(lambda: shutil.rmtree(tmp_path, ignore_errors=True))
+
+        launcher_module = tmp_path / "wave19_launcher.py"
+        launcher_module.write_text(
+            "\n".join(
+                [
+                    "from dataclasses import dataclass",
+                    "",
+                    "@dataclass",
+                    "class Experiment:",
+                    "    name: str",
+                    "    gpu: int",
+                    '    case_name: str = "face"',
+                    "    resolution: int = 384",
+                    "    epoch: int = 2",
+                    "",
+                    "def build_run_name(exp: Experiment, wave_name: str) -> str:",
+                    '    return f\"{wave_name}_{exp.case_name}_{exp.name}_r{exp.resolution}\"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        queue_root = tmp_path / "queues"
+        wave_name = "wave19"
+        queue_wave_root = queue_root / wave_name
+        (queue_wave_root / "scripts").mkdir(parents=True)
+        (queue_wave_root / "scripts" / "slot_gpu0.sh").write_text(
+            (
+                "python3 build_fixed_gpu_overnight_queue.py run-one "
+                f"--launcher-module {launcher_module} "
+                "--queue-root /tmp/queues --wave-name wave19 --slot-gpu 0 --job-json /tmp/job.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+        job_json = queue_wave_root / "job.json"
+        job_json.write_text(
+            json.dumps(
+                {
+                    "name": "carrier_probe",
+                    "exp_kwargs": {
+                        "case_name": "face",
+                        "resolution": 384,
+                        "epoch": 2,
+                    },
+                    "extra_env": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        run_root = queue_wave_root / "results" / "wave19_face_carrier_probe_r384"
+        checkpoint = run_root / "point_cloud" / "iteration_7" / "chkpnt7000.pth"
+        checkpoint.parent.mkdir(parents=True)
+        checkpoint.write_text("stub", encoding="utf-8")
+
+        build_fixed_gpu_overnight_queue.gc_job(
+            queue_root=queue_root,
+            wave_name=wave_name,
+            job_json=job_json,
+        )
+
+        self.assertFalse(checkpoint.exists())
+
+    def test_render_slot_script_passes_launcher_to_gc_job(self):
+        slot = build_fixed_gpu_overnight_queue.QueueSlot(gpu=1)
+        jobs = [build_fixed_gpu_overnight_queue.QueueJob(name="carrier_probe")]
+        launcher_module_path = Path("/tmp/launch_carrier_probe_wave.py")
+
+        script_text = build_fixed_gpu_overnight_queue.render_slot_script(
+            slot=slot,
+            jobs=jobs,
+            launcher_module_path=launcher_module_path,
+            queue_root=Path("/tmp/queues"),
+            wave_name="wave19",
+            queue_script_path=Path("/tmp/build_fixed_gpu_overnight_queue.py"),
+        )
+
+        self.assertIn("gc-job", script_text)
+        self.assertIn(f"--launcher-module {launcher_module_path}", script_text)
+
     def test_postprocess_job_uses_experiment_resolution_for_render(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)

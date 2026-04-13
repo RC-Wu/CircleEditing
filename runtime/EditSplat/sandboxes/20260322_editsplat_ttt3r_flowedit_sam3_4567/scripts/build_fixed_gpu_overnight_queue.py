@@ -118,6 +118,7 @@ def render_slot_script(
             "python3 "
             + shlex.quote(str(queue_script))
             + " gc-job "
+            + f"--launcher-module {shlex.quote(str(launcher_module_path))} "
             + f"--queue-root {shlex.quote(str(queue_root))} "
             + f"--wave-name {shlex.quote(wave_name)} "
             + f"--job-json {shlex.quote(str(job_dir / (job.name + '.json')))}"
@@ -158,6 +159,16 @@ def write_queue_files(
     assignments = assign_jobs_round_robin(jobs=jobs, slots=slots)
     (queue_wave_root / "manifest.json").write_text(
         json.dumps([asdict(job) for job in jobs], indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (queue_wave_root / "queue_config.json").write_text(
+        json.dumps(
+            {
+                "launcher_module": str(launcher_module_path),
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     for job in jobs:
@@ -299,9 +310,49 @@ def run_one_job(
     return proc.returncode
 
 
-def gc_job(queue_root: Path, wave_name: str, job_json: Path) -> None:
+def resolve_gc_launcher_module(
+    queue_wave_root: Path,
+    launcher_module_path: Path | None,
+) -> Path:
+    if launcher_module_path is not None:
+        return launcher_module_path
+
+    queue_config_path = queue_wave_root / "queue_config.json"
+    if queue_config_path.exists():
+        try:
+            payload = json.loads(queue_config_path.read_text(encoding="utf-8"))
+        except Exception:
+            payload = {}
+        launcher_value = payload.get("launcher_module") if isinstance(payload, dict) else None
+        if launcher_value:
+            return Path(str(launcher_value))
+
+    scripts_dir = queue_wave_root / "scripts"
+    for script_path in sorted(scripts_dir.glob("slot_*.sh")):
+        try:
+            text = script_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        marker = "--launcher-module "
+        idx = text.find(marker)
+        if idx == -1:
+            continue
+        remainder = text[idx + len(marker) :]
+        candidate = remainder.split()[0].strip()
+        if candidate:
+            return Path(candidate)
+
+    return DEFAULT_LAUNCHER_MODULE
+
+
+def gc_job(
+    queue_root: Path,
+    wave_name: str,
+    job_json: Path,
+    launcher_module_path: Path | None = None,
+) -> None:
     queue_wave_root = queue_root / wave_name
-    launcher = load_launcher_module(DEFAULT_LAUNCHER_MODULE)
+    launcher = load_launcher_module(resolve_gc_launcher_module(queue_wave_root, launcher_module_path))
     job = QueueJob(**json.loads(job_json.read_text(encoding="utf-8")))
     exp_kwargs = dict(job.exp_kwargs)
     exp_kwargs["name"] = job.name
@@ -462,6 +513,7 @@ def main() -> None:
     post.add_argument("--job-json", type=Path, required=True)
 
     gc = subparsers.add_parser("gc-job", help="clean transient artifacts for one job")
+    gc.add_argument("--launcher-module", type=Path, default=None)
     gc.add_argument("--queue-root", type=Path, required=True)
     gc.add_argument("--wave-name", type=str, required=True)
     gc.add_argument("--job-json", type=Path, required=True)
@@ -502,7 +554,12 @@ def main() -> None:
             job_json=args.job_json,
         )
         return
-    gc_job(queue_root=args.queue_root, wave_name=args.wave_name, job_json=args.job_json)
+    gc_job(
+        queue_root=args.queue_root,
+        wave_name=args.wave_name,
+        job_json=args.job_json,
+        launcher_module_path=args.launcher_module,
+    )
 
 
 if __name__ == "__main__":
