@@ -24,6 +24,11 @@ def _as_weight_mask(mask: Optional["torch.Tensor"], reference: "torch.Tensor") -
     return mask.to(device=reference.device, dtype=reference.dtype).clamp(0.0, 1.0)
 
 
+def coerce_tensor_like(value: "torch.Tensor", reference: "torch.Tensor") -> "torch.Tensor":
+    _require_torch()
+    return torch.as_tensor(value, device=reference.device, dtype=reference.dtype)
+
+
 def build_a_baseline_carrier(
     source: "torch.Tensor",
     initial_edit: "torch.Tensor",

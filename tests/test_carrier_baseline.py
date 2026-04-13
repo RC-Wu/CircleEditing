@@ -12,7 +12,11 @@ EDITSPLAT_ROOT = REPO_ROOT / "runtime" / "EditSplat"
 if str(EDITSPLAT_ROOT) not in sys.path:
     sys.path.insert(0, str(EDITSPLAT_ROOT))
 
-from utils.carrier_baseline import build_a_baseline_carrier, prompt_separation_retention_ratio  # noqa: E402
+from utils.carrier_baseline import (  # noqa: E402
+    build_a_baseline_carrier,
+    coerce_tensor_like,
+    prompt_separation_retention_ratio,
+)
 
 
 @unittest.skipIf(torch is None, "torch is required for carrier baseline tests")
@@ -57,6 +61,16 @@ class CarrierBaselineTests(unittest.TestCase):
     def test_psrr_uses_epsilon_for_zero_teacher_gap(self):
         self.assertEqual(prompt_separation_retention_ratio(teacher_mad=0.0, final_mad=0.0), 0.0)
         self.assertGreater(prompt_separation_retention_ratio(teacher_mad=0.0, final_mad=0.1), 1000.0)
+
+    def test_coerce_tensor_like_matches_reference_dtype_and_device(self):
+        reference = torch.zeros((1, 3, 4, 4), dtype=torch.float16)
+        value = torch.ones((1, 3, 4, 4), dtype=torch.float32)
+
+        result = coerce_tensor_like(value, reference)
+
+        self.assertEqual(result.dtype, reference.dtype)
+        self.assertEqual(result.device, reference.device)
+        self.assertTrue(torch.allclose(result, torch.ones_like(reference)))
 
 
 if __name__ == "__main__":
