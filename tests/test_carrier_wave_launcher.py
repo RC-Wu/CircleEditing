@@ -28,6 +28,15 @@ SPEC.loader.exec_module(carrier_wave_launcher)
 
 
 class CarrierWaveLauncherEnvTests(unittest.TestCase):
+    def test_build_command_uses_experiment_resolution(self):
+        exp = carrier_wave_launcher.build_wave()[0]
+        exp.resolution = 384
+
+        command = carrier_wave_launcher.build_command(exp=exp, wave_name="wave")
+
+        resolution_index = command.index("--resolution")
+        self.assertEqual(command[resolution_index + 1], "384")
+
     def test_build_launch_env_defaults_to_cached_xulf_s_in_offline_mode(self):
         exp = carrier_wave_launcher.build_wave()[0]
         with mock.patch.dict(os.environ, {}, clear=True):

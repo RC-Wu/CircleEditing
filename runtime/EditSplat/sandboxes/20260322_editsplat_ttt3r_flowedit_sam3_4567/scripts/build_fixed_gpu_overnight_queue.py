@@ -381,6 +381,7 @@ def postprocess_job(
         if path.name.startswith("iteration_")
     )
 
+    render_resolution = getattr(exp, "resolution", 384)
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = str(slot_gpu)
     try:
@@ -393,7 +394,7 @@ def postprocess_job(
                 "-m",
                 str(model_path),
                 "--resolution",
-                "8",
+                str(render_resolution),
                 "--iteration",
                 str(latest_iter),
                 "--skip_test",

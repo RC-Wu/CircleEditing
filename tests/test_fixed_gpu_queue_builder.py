@@ -29,6 +29,78 @@ SPEC.loader.exec_module(build_fixed_gpu_overnight_queue)
 
 
 class BuildFixedGpuQueueTests(unittest.TestCase):
+    def test_postprocess_job_uses_experiment_resolution_for_render(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            queue_root = tmp_path / "queue"
+            wave_name = "wave"
+            job_json = tmp_path / "job.json"
+            job_json.write_text(
+                json.dumps(
+                    {
+                        "name": "bandage_wrap_open_semboost_core",
+                        "exp_kwargs": {
+                            "case_name": "face",
+                            "ttt3r_mode": "velocity",
+                            "conf_power": 1.0,
+                            "conf_floor": 0.0,
+                            "prox_strength": 0.0,
+                            "preserve_strength": 0.0,
+                            "edit_boost": 1.0,
+                            "preserve_boost": 1.0,
+                            "adaptive_max_scale": 3.0,
+                            "schedule_power": 2.0,
+                            "resolution": 384,
+                        },
+                        "extra_env": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            model_path = queue_root / wave_name / "results" / f"{wave_name}_bandage_wrap_open_semboost_core"
+            point_cloud_dir = model_path / "point_cloud" / "iteration_7004"
+            point_cloud_dir.mkdir(parents=True, exist_ok=True)
+
+            class DummyExperiment:
+                def __init__(self, **kwargs):
+                    self.__dict__.update(kwargs)
+                    self.resolution = kwargs.get("resolution", 384)
+                    self.case_name = kwargs.get("case_name", "face")
+
+            class DummyLauncher:
+                PYTHON = Path("/usr/bin/python3")
+                Experiment = DummyExperiment
+
+                @staticmethod
+                def build_run_name(exp, wave_name):
+                    return f"{wave_name}_{exp.name}"
+
+                @staticmethod
+                def dataset_for_case(_case_name):
+                    return tmp_path / "dataset"
+
+            with mock.patch.object(
+                build_fixed_gpu_overnight_queue,
+                "load_launcher_module",
+                return_value=DummyLauncher,
+            ), mock.patch.object(
+                build_fixed_gpu_overnight_queue.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0),
+            ) as mocked_run:
+                build_fixed_gpu_overnight_queue.postprocess_job(
+                    launcher_module_path=SCRIPT_PATH,
+                    queue_root=queue_root,
+                    wave_name=wave_name,
+                    slot_gpu=0,
+                    job_json=job_json,
+                )
+
+        render_cmd = mocked_run.call_args_list[0].args[0]
+        resolution_index = render_cmd.index("--resolution")
+        self.assertEqual(render_cmd[resolution_index + 1], "384")
+
     def test_run_one_job_uses_launcher_build_launch_env(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)

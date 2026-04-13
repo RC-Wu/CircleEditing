@@ -37,12 +37,8 @@ def default_dataset_face(casebank_root: Path | None = None) -> Path:
     ).resolve()
 
 
-PROJECT_ROOT = Path(
-    "/dev_vepfs/rc_wu/_codex_staging/20260411_circleediting_carrier_probe/runtime/EditSplat"
-).resolve()
-SANDBOX_ROOT = (
-    PROJECT_ROOT / "sandboxes" / "20260322_editsplat_ttt3r_flowedit_sam3_4567"
-).resolve()
+PROJECT_ROOT = Path("/dev_vepfs/rc_wu/edit/EditSplat").resolve()
+SANDBOX_ROOT = (PROJECT_ROOT / "sandboxes" / "20260322_editsplat_ttt3r_flowedit_sam3_4567").resolve()
 ROOT = PROJECT_ROOT
 WRAPPER = SANDBOX_ROOT / "scripts" / "run_sd35_ttt3r_sam3_wrapper.py"
 PYTHON = Path("/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python").resolve()
@@ -93,6 +89,8 @@ class Experiment:
     depth_mode: str = "constant"
     max_train_views: int = 2
     max_gaussians: int = 60000
+    resolution: int = 384
+    epoch: int = 2
     flow_steps: int = 24
     flow_src_guidance_scale: float = 3.6
     flow_tar_guidance_scale: float = 6.9
@@ -273,9 +271,9 @@ def build_command(exp: Experiment, wave_name: str) -> List[str]:
         "--source_checkpoint",
         str(SOURCE_CKPT),
         "--resolution",
-        "8",
+        str(exp.resolution),
         "--epoch",
-        "2",
+        str(exp.epoch),
         "--flow_model_key",
         "sd35-medium-turbo-open",
         "--flow_hf_home",
