@@ -1,0 +1,127 @@
+/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+[TTT3R] forcing CPU runtime (gpu_flag=-1 force_cpu_env=1).
+... loading model from /dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth
+instantiating : ARCroco3DStereo(ARCroco3DStereoConfig(freeze='encoder',state_size=768,state_pe='2d',pos_embed='RoPE100',rgb_head=True,pose_head=True,patch_embed_cls='PatchEmbedDust3R',img_size=(512,512),head_type='dpt',output_mode='pts3d+pose',depth_mode=('exp',-inf,inf),conf_mode=('exp',1,inf),pose_mode=('exp',-inf,inf),enc_embed_dim=1024,enc_depth=24,enc_num_heads=16,dec_embed_dim=768,dec_depth=12,dec_num_heads=12,landscape_only=False))
+<All keys matched successfully>
+[TTT3R] loaded checkpoint=/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth update_type=ttt3r device=cpu
+[TTT3R] patched dust3r.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched dust3r.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched croco.models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched croco.models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] cast CPU runtime model to float32.
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]Loading pipeline components...:  29%|██▊       | 2/7 [00:03<00:08,  1.64s/it]Loading pipeline components...:  57%|█████▋    | 4/7 [00:03<00:02,  1.40it/s]Loading pipeline components...:  71%|███████▏  | 5/7 [00:11<00:06,  3.03s/it]Loading pipeline components...:  86%|████████▌ | 6/7 [00:12<00:02,  2.39s/it]Loading pipeline components...: 100%|██████████| 7/7 [00:13<00:00,  1.73s/it]Loading pipeline components...: 100%|██████████| 7/7 [00:13<00:00,  1.86s/it]
+Expected types for text_encoder_2: (<class 'transformers.models.t5.modeling_t5.T5EncoderModel'>,), got <class 'transformers.models.clip.modeling_clip.CLIPTextModelWithProjection'>.
+Expected types for transformer: (<class 'diffusers.models.transformers.transformer_flux.FluxTransformer2DModel'>,), got <class 'diffusers.models.transformers.transformer_sd3.SD3Transformer2DModel'>.
+Expected types for text_encoder: (<class 'transformers.models.clip.modeling_clip.CLIPTextModel'>,), got <class 'transformers.models.clip.modeling_clip.CLIPTextModelWithProjection'>.
+Loading pipeline components...:   0%|          | 0/9 [00:00<?, ?it/s]Loading pipeline components...:  22%|██▏       | 2/9 [00:00<00:01,  6.61it/s]Loading pipeline components...:  44%|████▍     | 4/9 [00:00<00:00,  5.25it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][A
+Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  1.67it/s][A
+Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.66it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.66it/s]
+Loading pipeline components...:  67%|██████▋   | 6/9 [00:02<00:01,  2.24it/s]Loading pipeline components...:  78%|███████▊  | 7/9 [00:03<00:01,  1.44it/s]Loading pipeline components...:  89%|████████▉ | 8/9 [00:03<00:00,  1.72it/s]Loading pipeline components...: 100%|██████████| 9/9 [00:04<00:00,  2.24it/s]
+UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+DEBUG:root:Falling back to triton or CPU mask NMS implementation -- please install `torch_generic_nms` via
+	pip uninstall -y torch_generic_nms; TORCH_CUDA_ARCH_LIST="8.0 9.0" pip install git+https://github.com/ronghanghu/torch_generic_nms
+DEBUG:urllib3.connectionpool:https://huggingface.co:443 "HEAD /facebook/sam3/resolve/main/config.json HTTP/1.1" 401 0
+DEBUG:urllib3.connectionpool:https://huggingface.co:443 "HEAD /facebook/sam3/resolve/main/sam3.pt HTTP/1.1" 401 0
+[TTT3R] copied source point cloud from /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/compat_pretrained_face/point_cloud/iteration_7004/point_cloud.ply -> /dev_vepfs/rc_wu/edit/CircleEditing/runs/frontier_seed1_grid3_editstrong_211_epoch1_anchorhybrid_tensorart_20260327_211522/point_cloud/iteration_7004/point_cloud.ply
+[WARN] ImageReward import failed; using dummy reward ranker.
+[SAM3] adapter init env_device=cpu
+[SAM3] confidence fallback ladder=[0.12, 0.08, 0.04, 0.0]
+[SAM3] no HuggingFace token detected; attempting unauthenticated download.
+[SAM3] Found SAM3 module, attempting to load...
+[SAM3] patched TransformerDecoder._get_rpb_matrix for cache/device consistency.
+[SAM3] device candidates=['cpu']
+[SAM3] loading official backend on device=cpu ...
+[SAM3] loaded official image segmentation backend on cpu.
+[SAM3] confidence threshold set to 0.180
+source_path /dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset/face
+Loading trained model at iteration 7004
+Reading camera 1/65Reading camera 2/65Reading camera 3/65Reading camera 4/65Reading camera 5/65Reading camera 6/65Reading camera 7/65Reading camera 8/65Reading camera 9/65Reading camera 10/65Reading camera 11/65Reading camera 12/65Reading camera 13/65Reading camera 14/65Reading camera 15/65Reading camera 16/65Reading camera 17/65Reading camera 18/65Reading camera 19/65Reading camera 20/65Reading camera 21/65Reading camera 22/65Reading camera 23/65Reading camera 24/65Reading camera 25/65Reading camera 26/65Reading camera 27/65Reading camera 28/65Reading camera 29/65Reading camera 30/65Reading camera 31/65Reading camera 32/65Reading camera 33/65Reading camera 34/65Reading camera 35/65Reading camera 36/65Reading camera 37/65Reading camera 38/65Reading camera 39/65Reading camera 40/65Reading camera 41/65Reading camera 42/65Reading camera 43/65Reading camera 44/65Reading camera 45/65Reading camera 46/65Reading camera 47/65Reading camera 48/65Reading camera 49/65Reading camera 50/65Reading camera 51/65Reading camera 52/65Reading camera 53/65Reading camera 54/65Reading camera 55/65Reading camera 56/65Reading camera 57/65Reading camera 58/65Reading camera 59/65Reading camera 60/65Reading camera 61/65Reading camera 62/65Reading camera 63/65Reading camera 64/65Reading camera 65/65FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+
+Loading Training Cameras
+Loading Test Cameras
+[WARN] sandbox wrapper scaling optimizer learning rates by 0.6000.
+[SPARSE] Gaussian count pruned: 706661 -> 70000 (EDITSPLAT_MAX_GAUSSIANS=70000)
+[SPARSE] CameraDataset truncated to 6 views
+[SPARSE] CameraDataset truncated: 6 -> 6 views
+Initial editing progress:   0%|          | 0/6 [00:00<?, ?it/s]Initial editing progress:  17%|█▋        | 1/6 [00:02<00:11,  2.33s/it]Initial editing progress:  33%|███▎      | 2/6 [00:03<00:07,  1.87s/it]Initial editing progress:  50%|█████     | 3/6 [00:05<00:05,  1.71s/it]Initial editing progress:  67%|██████▋   | 4/6 [00:06<00:03,  1.63s/it]Initial editing progress:  83%|████████▎ | 5/6 [00:08<00:01,  1.58s/it]Initial editing progress: 100%|██████████| 6/6 [00:09<00:00,  1.56s/it]Initial editing progress: 100%|██████████| 6/6 [00:09<00:00,  1.65s/it]
+Depth processing progress:   0%|          | 0/6 [00:00<?, ?it/s]Depth processing progress: 100%|██████████| 6/6 [00:00<00:00, 16534.71it/s]
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+DEBUG:PIL.PngImagePlugin:STREAM b'IHDR' 16 13
+DEBUG:PIL.PngImagePlugin:STREAM b'IDAT' 41 65536
+[IR] mode=keep_ratio keep_count=6 selected=[0, 1, 2, 3, 4, 5]
+Multi-view reprojection progress:   0%|          | 0/6 [00:00<?, ?it/s]FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+Multi-view reprojection progress:  17%|█▋        | 1/6 [00:33<02:45, 33.01s/it]Multi-view reprojection progress:  33%|███▎      | 2/6 [00:54<01:45, 26.50s/it]Multi-view reprojection progress:  50%|█████     | 3/6 [01:20<01:18, 26.11s/it]Multi-view reprojection progress:  67%|██████▋   | 4/6 [01:43<00:49, 24.68s/it]Multi-view reprojection progress:  83%|████████▎ | 5/6 [02:13<00:26, 26.61s/it]Multi-view reprojection progress: 100%|██████████| 6/6 [02:42<00:00, 27.51s/it]Multi-view reprojection progress: 100%|██████████| 6/6 [02:42<00:00, 27.06s/it]
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=True
+[SAM3] lowering confidence threshold to 0.120
+[SAM3] lowering confidence threshold to 0.080
+[SAM3] lowering confidence threshold to 0.040
+[SAM3] lowering confidence threshold to 0.000
+[SAM3] mask stats prompt=face thr=0.000 mean=0.017 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.087 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=True
+[SAM3] mask stats prompt=face thr=0.180 mean=0.423 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.133 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=True
+[SAM3] lowering confidence threshold to 0.120
+[SAM3] lowering confidence threshold to 0.080
+[SAM3] mask stats prompt=face thr=0.080 mean=0.000 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.071 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=True
+[SAM3] mask stats prompt=face thr=0.180 mean=0.057 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.109 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=True
+[SAM3] lowering confidence threshold to 0.120
+[SAM3] lowering confidence threshold to 0.080
+[SAM3] lowering confidence threshold to 0.040
+[SAM3] lowering confidence threshold to 0.000
+[SAM3] mask stats prompt=face thr=0.000 mean=0.017 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.137 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=True
+[SAM3] lowering confidence threshold to 0.120
+[SAM3] lowering confidence threshold to 0.080
+[SAM3] lowering confidence threshold to 0.040
+[SAM3] lowering confidence threshold to 0.000
+[SAM3] mask stats prompt=face thr=0.000 mean=0.017 min=0.000 max=1.000
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.095 min=0.000 max=1.000
+[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.
+EPOCH 0: optimizing 3D Gaussian Splatting:   0%|          | 0/6 [00:00<?, ?it/s]EPOCH 0: optimizing 3D Gaussian Splatting:  17%|█▋        | 1/6 [00:00<00:01,  4.30it/s]EPOCH 0: optimizing 3D Gaussian Splatting:  50%|█████     | 3/6 [00:00<00:00,  8.06it/s]EPOCH 0: optimizing 3D Gaussian Splatting:  83%|████████▎ | 5/6 [00:00<00:00,  9.13it/s]EPOCH 0: optimizing 3D Gaussian Splatting: 100%|██████████| 6/6 [00:00<00:00,  8.62it/s]
+first densification...
+Trimming top 0.15% gradient points
+Pruning top k points:  105
+[WARN] sandbox wrapper reached max_optimizer_steps=1; skipping later optimizer.step() calls.
+
+[EPOCH 1] Saving Gaussians
+
+[EPOCH 1] Saving Checkpoint
+
+source_path /dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset/face
+Loading trained model at iteration 7010
+Reading camera 1/65Reading camera 2/65Reading camera 3/65Reading camera 4/65Reading camera 5/65Reading camera 6/65Reading camera 7/65Reading camera 8/65Reading camera 9/65Reading camera 10/65Reading camera 11/65Reading camera 12/65Reading camera 13/65Reading camera 14/65Reading camera 15/65Reading camera 16/65Reading camera 17/65Reading camera 18/65Reading camera 19/65Reading camera 20/65Reading camera 21/65Reading camera 22/65Reading camera 23/65Reading camera 24/65Reading camera 25/65Reading camera 26/65Reading camera 27/65Reading camera 28/65Reading camera 29/65Reading camera 30/65Reading camera 31/65Reading camera 32/65Reading camera 33/65Reading camera 34/65Reading camera 35/65Reading camera 36/65Reading camera 37/65Reading camera 38/65Reading camera 39/65Reading camera 40/65Reading camera 41/65Reading camera 42/65Reading camera 43/65Reading camera 44/65Reading camera 45/65Reading camera 46/65Reading camera 47/65Reading camera 48/65Reading camera 49/65Reading camera 50/65Reading camera 51/65Reading camera 52/65Reading camera 53/65Reading camera 54/65Reading camera 55/65Reading camera 56/65Reading camera 57/65Reading camera 58/65Reading camera 59/65Reading camera 60/65Reading camera 61/65Reading camera 62/65Reading camera 63/65Reading camera 64/65Reading camera 65/65
+Loading Training Cameras
+Loading Test Cameras
+Rendering progress:   0%|          | 0/56 [00:00<?, ?it/s]Rendering progress:   2%|▏         | 1/56 [00:00<00:15,  3.56it/s]Rendering progress:   4%|▎         | 2/56 [00:00<00:12,  4.27it/s]Rendering progress:   5%|▌         | 3/56 [00:00<00:11,  4.57it/s]Rendering progress:   7%|▋         | 4/56 [00:00<00:11,  4.40it/s]Rendering progress:   9%|▉         | 5/56 [00:01<00:12,  4.23it/s]Rendering progress:  11%|█         | 6/56 [00:01<00:12,  4.12it/s]Rendering progress:  12%|█▎        | 7/56 [00:01<00:11,  4.25it/s]Rendering progress:  14%|█▍        | 8/56 [00:01<00:11,  4.35it/s]Rendering progress:  16%|█▌        | 9/56 [00:02<00:10,  4.48it/s]Rendering progress:  18%|█▊        | 10/56 [00:02<00:10,  4.59it/s]Rendering progress:  20%|█▉        | 11/56 [00:02<00:09,  4.64it/s]Rendering progress:  21%|██▏       | 12/56 [00:02<00:09,  4.65it/s]Rendering progress:  23%|██▎       | 13/56 [00:02<00:09,  4.67it/s]Rendering progress:  25%|██▌       | 14/56 [00:03<00:09,  4.64it/s]Rendering progress:  27%|██▋       | 15/56 [00:03<00:08,  4.56it/s]Rendering progress:  29%|██▊       | 16/56 [00:03<00:08,  4.64it/s]Rendering progress:  30%|███       | 17/56 [00:03<00:08,  4.66it/s]Rendering progress:  32%|███▏      | 18/56 [00:03<00:08,  4.69it/s]Rendering progress:  34%|███▍      | 19/56 [00:04<00:07,  4.64it/s]Rendering progress:  36%|███▌      | 20/56 [00:04<00:07,  4.67it/s]Rendering progress:  38%|███▊      | 21/56 [00:04<00:07,  4.72it/s]Rendering progress:  39%|███▉      | 22/56 [00:04<00:07,  4.77it/s]Rendering progress:  41%|████      | 23/56 [00:05<00:06,  4.78it/s]Rendering progress:  43%|████▎     | 24/56 [00:05<00:06,  4.79it/s]Rendering progress:  45%|████▍     | 25/56 [00:05<00:06,  4.75it/s]Rendering progress:  46%|████▋     | 26/56 [00:05<00:06,  4.67it/s]Rendering progress:  48%|████▊     | 27/56 [00:05<00:06,  4.59it/s]Rendering progress:  50%|█████     | 28/56 [00:06<00:06,  4.50it/s]Rendering progress:  52%|█████▏    | 29/56 [00:06<00:06,  4.44it/s]Rendering progress:  54%|█████▎    | 30/56 [00:06<00:05,  4.42it/s]Rendering progress:  55%|█████▌    | 31/56 [00:06<00:05,  4.46it/s]Rendering progress:  57%|█████▋    | 32/56 [00:07<00:05,  4.54it/s]Rendering progress:  59%|█████▉    | 33/56 [00:07<00:04,  4.62it/s]Rendering progress:  61%|██████    | 34/56 [00:07<00:04,  4.70it/s]Rendering progress:  62%|██████▎   | 35/56 [00:07<00:04,  4.76it/s]Rendering progress:  64%|██████▍   | 36/56 [00:07<00:04,  4.82it/s]Rendering progress:  66%|██████▌   | 37/56 [00:08<00:03,  4.84it/s]Rendering progress:  68%|██████▊   | 38/56 [00:08<00:03,  4.86it/s]Rendering progress:  70%|██████▉   | 39/56 [00:08<00:03,  4.88it/s]Rendering progress:  71%|███████▏  | 40/56 [00:08<00:03,  4.80it/s]Rendering progress:  73%|███████▎  | 41/56 [00:08<00:03,  4.77it/s]Rendering progress:  75%|███████▌  | 42/56 [00:09<00:02,  4.72it/s]Rendering progress:  77%|███████▋  | 43/56 [00:09<00:02,  4.66it/s]Rendering progress:  79%|███████▊  | 44/56 [00:09<00:02,  4.59it/s]Rendering progress:  80%|████████  | 45/56 [00:09<00:02,  4.52it/s]Rendering progress:  82%|████████▏ | 46/56 [00:10<00:02,  4.49it/s]Rendering progress:  84%|████████▍ | 47/56 [00:10<00:01,  4.52it/s]Rendering progress:  86%|████████▌ | 48/56 [00:10<00:01,  4.56it/s]Rendering progress:  88%|████████▊ | 49/56 [00:10<00:01,  4.63it/s]Rendering progress:  89%|████████▉ | 50/56 [00:10<00:01,  4.68it/s]Rendering progress:  91%|█████████ | 51/56 [00:11<00:01,  4.74it/s]Rendering progress:  93%|█████████▎| 52/56 [00:11<00:00,  4.75it/s]Rendering progress:  95%|█████████▍| 53/56 [00:11<00:00,  4.75it/s]Rendering progress:  96%|█████████▋| 54/56 [00:11<00:00,  4.73it/s]Rendering progress:  98%|█████████▊| 55/56 [00:11<00:00,  4.72it/s]Rendering progress: 100%|██████████| 56/56 [00:12<00:00,  4.71it/s]Rendering progress: 100%|██████████| 56/56 [00:12<00:00,  4.62it/s]
+Rendering progress:   0%|          | 0/9 [00:00<?, ?it/s]Rendering progress:  11%|█         | 1/9 [00:00<00:01,  4.63it/s]Rendering progress:  22%|██▏       | 2/9 [00:00<00:01,  4.58it/s]Rendering progress:  33%|███▎      | 3/9 [00:00<00:01,  4.62it/s]Rendering progress:  44%|████▍     | 4/9 [00:00<00:01,  4.68it/s]Rendering progress:  56%|█████▌    | 5/9 [00:01<00:00,  4.54it/s]Rendering progress:  67%|██████▋   | 6/9 [00:01<00:00,  4.67it/s]Rendering progress:  78%|███████▊  | 7/9 [00:01<00:00,  4.63it/s]Rendering progress:  89%|████████▉ | 8/9 [00:01<00:00,  4.69it/s]Rendering progress: 100%|██████████| 9/9 [00:01<00:00,  4.69it/s]Rendering progress: 100%|██████████| 9/9 [00:01<00:00,  4.65it/s]
+[INFO] External backend runtime summary: {'backend': 'wrapper_preloaded_sd3_adapter', 'device': 'cuda:0', 'mode': 'velocity', 'flow_method': 'flowedit'}
+[TTT3R] patched GaussianModel with advanced optimization techniques.

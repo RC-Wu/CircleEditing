@@ -1,0 +1,14 @@
+{
+  "requested": "sam3",
+  "effective": "sam3",
+  "detail": "sam3_device=cpu",
+  "sam3_mask_stats": [
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.0867462158203125,
+      "min": 0.0,
+      "max": 1.0
+    }
+  ]
+}

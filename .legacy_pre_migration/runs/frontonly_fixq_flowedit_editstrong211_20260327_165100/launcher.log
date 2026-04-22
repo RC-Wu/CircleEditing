@@ -1,0 +1,136 @@
+CMD=/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python /dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py --model_key sd35-medium-turbo-open --hf_home /dev_vepfs/rc_wu/cache/hf_home_dev02 --adapter_resize_side 512 --adapter_gpu 0 --base_gpu 0 --head_k 6 --depth_mode constant --skip_agt --aux_models_cpu --ttt3r_repo_root /dev_vepfs/rc_wu/edit/TTT3R --ttt3r_checkpoint /dev_vepfs/rc_wu/edit/TTT3R/src/cut3r_512_dpt_4_64.pth --ttt3r_support_views 2 --ttt3r_support_stride 1 --ttt3r_conf_power 1.0 --ttt3r_conf_floor 0.0 --ttt3r_geo_scale 1.0 --ttt3r_edit_min_mass 0.0 --ttt3r_preserve_min_mass 0.0 --ttt3r_adaptive_max_scale 3.2 --ttt3r_schedule_power 1.8 --ttt3r_input_h 256 --ttt3r_input_w 320 --ttt3r_edit_mask_quantile 0.9 --ttt3r_gpu -1 --dump_intermediates --dump_max_per_stage 16 --max_optimizer_steps 1 --optimizer_lr_scale 0.6 --fit_loss_mask_mode initial_edit --fit_loss_mask_quantile 0.75 --fit_loss_mask_bg 0.05 --fit_view_topk 1 --source_path /dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset/face --source_checkpoint /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/compat_pretrained_face/chkpnt7004.pth --eval --epoch 0 --iterations 30000 --debug --target_prompt the same man in the same pose and camera framing, same background and clothes, with clear clown makeup: white face paint, a red clown nose, and colorful face paint --sampling_prompt the same man with clown makeup, same framing and identity --object_prompt face --target_mask_prompt face --filtering_ratio 1.0 --flow_src_prompt a photo of a young man --flow_tar_prompt the same man in the same pose and camera framing, same background and clothes, with clear clown makeup: white face paint, a red clown nose, and colorful face paint --flow_model_key sd35-medium-turbo-open --flow_hf_home /dev_vepfs/rc_wu/cache/hf_home_dev02 --flow_adapter_resize_side 512 --flow_adapter_gpu 0 --flow_steps 24 --flow_n_avg 1 --flow_n_min 0 --flow_n_max 10 --flow_seed 211 --enable --resize 512 --timesteps 28 --n_min 0 --n_max 24 --time_weight one --w_edit 1.0 --w_id 0.2 --src_guidance 1.4 --tar_guidance 7.8 --mask_bg 0.15 --attn_thres 0.1 --k_percent 0.0 --text_guidance_scale 7.4 --image_guidance_scale 1.6 --source_guidance_scale 1.0 --flow_src_guidance_scale 3.2 --flow_tar_guidance_scale 7.8 --ttt3r_mode velocity --ttt3r_prox_strength 0.06 --ttt3r_preserve_strength 0.02 --ttt3r_edit_boost 1.0 --ttt3r_preserve_boost 1.0 --model_path /dev_vepfs/rc_wu/edit/CircleEditing/runs/frontonly_fixq_flowedit_editstrong211_20260327_165100 --flow_method flowedit
+/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+Couldn't connect to the Hub: (MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /api/models/cocktailpeanut/xulf-s (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4914020a0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 3239e200-dec3-49f9-8513-82e312a519c5)').
+Will try to load from local cache.
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+[TTT3R] forcing CPU runtime (gpu_flag=-1 force_cpu_env=0).
+... loading model from /dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth
+instantiating : ARCroco3DStereo(ARCroco3DStereoConfig(freeze='encoder',state_size=768,state_pe='2d',pos_embed='RoPE100',rgb_head=True,pose_head=True,patch_embed_cls='PatchEmbedDust3R',img_size=(512,512),head_type='dpt',output_mode='pts3d+pose',depth_mode=('exp',-inf,inf),conf_mode=('exp',1,inf),pose_mode=('exp',-inf,inf),enc_embed_dim=1024,enc_depth=24,enc_num_heads=16,dec_embed_dim=768,dec_depth=12,dec_num_heads=12,landscape_only=False))
+<All keys matched successfully>
+[TTT3R] loaded checkpoint=/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth update_type=ttt3r device=cpu
+[TTT3R] patched dust3r.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched dust3r.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched croco.models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched croco.models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] cast CPU runtime model to float32.
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s][A
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:00,  3.54it/s][A
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:00<00:00,  3.77it/s][A
+Loading checkpoint shards: 100%|██████████| 3/3 [00:00<00:00,  5.05it/s][ALoading checkpoint shards: 100%|██████████| 3/3 [00:00<00:00,  4.59it/s]
+Loading pipeline components...:  14%|█▍        | 1/7 [00:00<00:04,  1.27it/s]Loading pipeline components...:  29%|██▊       | 2/7 [00:00<00:02,  2.40it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 58.97it/s]
+Loading pipeline components...:  71%|███████▏  | 5/7 [00:01<00:00,  6.43it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:01<00:00,  5.98it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:01<00:00,  4.77it/s]
+Loading pipeline components...:   0%|          | 0/9 [00:00<?, ?it/s]Loading pipeline components...:  22%|██▏       | 2/9 [00:00<00:01,  5.09it/s]Loading pipeline components...:  33%|███▎      | 3/9 [00:00<00:01,  3.96it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][A
+Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  1.52it/s][A
+Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.32it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.35it/s]
+Loading pipeline components...:  44%|████▍     | 4/9 [00:02<00:03,  1.37it/s]Loading pipeline components...:  67%|██████▋   | 6/9 [00:02<00:01,  2.11it/s]Loading pipeline components...:  89%|████████▉ | 8/9 [00:03<00:00,  2.31it/s]Loading pipeline components...: 100%|██████████| 9/9 [00:11<00:00,  2.25s/it]Loading pipeline components...: 100%|██████████| 9/9 [00:11<00:00,  1.30s/it]
+UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+DEBUG:root:Falling back to triton or CPU mask NMS implementation -- please install `torch_generic_nms` via
+	pip uninstall -y torch_generic_nms; TORCH_CUDA_ARCH_LIST="8.0 9.0" pip install git+https://github.com/ronghanghu/torch_generic_nms
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (2): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48256a430>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: af77c83f-3c27-46f6-a501-1a6eaa36c79b)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48256a430>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: af77c83f-3c27-46f6-a501-1a6eaa36c79b)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+Retrying in 1s [Retry 1/5].
+WARNING:huggingface_hub.utils._http:Retrying in 1s [Retry 1/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (3): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8340>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 40195363-e77b-4473-8742-bb18ef30b31f)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8340>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 40195363-e77b-4473-8742-bb18ef30b31f)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+Retrying in 2s [Retry 2/5].
+WARNING:huggingface_hub.utils._http:Retrying in 2s [Retry 2/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (4): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d86a0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 48c2e4d0-3dae-4d7f-b98f-cd05dcf497c2)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d86a0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 48c2e4d0-3dae-4d7f-b98f-cd05dcf497c2)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+Retrying in 4s [Retry 3/5].
+WARNING:huggingface_hub.utils._http:Retrying in 4s [Retry 3/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (5): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8a00>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: f04333df-c5ac-4858-a0e6-c8bb785cd8e7)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8a00>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: f04333df-c5ac-4858-a0e6-c8bb785cd8e7)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+Retrying in 8s [Retry 4/5].
+WARNING:huggingface_hub.utils._http:Retrying in 8s [Retry 4/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (6): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8d60>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 9377d418-16ca-4ba1-9c5a-65a447a19878)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8d60>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 9377d418-16ca-4ba1-9c5a-65a447a19878)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+Retrying in 8s [Retry 5/5].
+WARNING:huggingface_hub.utils._http:Retrying in 8s [Retry 5/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (7): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48250d100>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: f7b67884-519d-4da7-92d6-8c31ba59bb76)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/config.json (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48250d100>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: f7b67884-519d-4da7-92d6-8c31ba59bb76)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/config.json
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8d60>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 2701f04b-7116-40a1-a5be-c40691dbff1a)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8d60>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 2701f04b-7116-40a1-a5be-c40691dbff1a)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+Retrying in 1s [Retry 1/5].
+WARNING:huggingface_hub.utils._http:Retrying in 1s [Retry 1/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (2): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d87f0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: a3a450ce-179c-4c2d-a4fb-915ff35634e5)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d87f0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: a3a450ce-179c-4c2d-a4fb-915ff35634e5)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+Retrying in 2s [Retry 2/5].
+WARNING:huggingface_hub.utils._http:Retrying in 2s [Retry 2/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (3): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8490>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 86f9ffee-081c-4315-9b32-77ba0b57b21b)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8490>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 86f9ffee-081c-4315-9b32-77ba0b57b21b)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+Retrying in 4s [Retry 3/5].
+WARNING:huggingface_hub.utils._http:Retrying in 4s [Retry 3/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (4): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8340>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 291a9301-5783-44fe-bd64-fe6b83d96306)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff4824d8340>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 291a9301-5783-44fe-bd64-fe6b83d96306)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+Retrying in 8s [Retry 4/5].
+WARNING:huggingface_hub.utils._http:Retrying in 8s [Retry 4/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (5): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48256a610>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 447ef680-4b76-4e87-956b-556c55699954)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48256a610>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 447ef680-4b76-4e87-956b-556c55699954)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+Retrying in 8s [Retry 5/5].
+WARNING:huggingface_hub.utils._http:Retrying in 8s [Retry 5/5].
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (6): huggingface.co:443
+'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48250d370>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: bc39d4ef-b5da-40e3-b815-d126f2e68d5b)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+WARNING:huggingface_hub.utils._http:'(MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /facebook/sam3/resolve/main/sam3.pt (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff48250d370>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: bc39d4ef-b5da-40e3-b815-d126f2e68d5b)')' thrown while requesting HEAD https://huggingface.co/facebook/sam3/resolve/main/sam3.pt
+[TTT3R] copied source point cloud from /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/compat_pretrained_face/point_cloud/iteration_7004/point_cloud.ply -> /dev_vepfs/rc_wu/edit/CircleEditing/runs/frontonly_fixq_flowedit_editstrong211_20260327_165100/point_cloud/iteration_7004/point_cloud.ply
+[WARN] ImageReward import failed; using dummy reward ranker.
+[SAM3] adapter init env_device=cpu
+[SAM3] confidence fallback ladder=[0.12, 0.08, 0.04, 0.0]
+[SAM3] seeded HuggingFace token from /dev_vepfs/rc_wu/.huggingface/token
+[SAM3] Found SAM3 module, attempting to load...
+[SAM3] patched TransformerDecoder._get_rpb_matrix for cache/device consistency.
+[SAM3] device candidates=['cpu']
+[SAM3] loading official backend on device=cpu ...
+[SAM3] loaded official image segmentation backend on cpu.
+[SAM3] confidence threshold set to 0.180
+source_path /dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset/face
+Loading trained model at iteration 7004
+Reading camera 1/65Reading camera 2/65Reading camera 3/65Reading camera 4/65Reading camera 5/65Reading camera 6/65Reading camera 7/65Reading camera 8/65Reading camera 9/65Reading camera 10/65Reading camera 11/65Reading camera 12/65Reading camera 13/65Reading camera 14/65Reading camera 15/65Reading camera 16/65Reading camera 17/65Reading camera 18/65Reading camera 19/65Reading camera 20/65Reading camera 21/65Reading camera 22/65Reading camera 23/65Reading camera 24/65Reading camera 25/65Reading camera 26/65Reading camera 27/65Reading camera 28/65Reading camera 29/65Reading camera 30/65Reading camera 31/65Reading camera 32/65Reading camera 33/65Reading camera 34/65Reading camera 35/65Reading camera 36/65Reading camera 37/65Reading camera 38/65Reading camera 39/65Reading camera 40/65Reading camera 41/65Reading camera 42/65Reading camera 43/65Reading camera 44/65Reading camera 45/65Reading camera 46/65Reading camera 47/65Reading camera 48/65Reading camera 49/65Reading camera 50/65Reading camera 51/65Reading camera 52/65Reading camera 53/65Reading camera 54/65Reading camera 55/65Reading camera 56/65Reading camera 57/65Reading camera 58/65Reading camera 59/65Reading camera 60/65Reading camera 61/65Reading camera 62/65Reading camera 63/65Reading camera 64/65Reading camera 65/65FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+
+Loading Training Cameras
+Loading Test Cameras
+[WARN] sandbox wrapper scaling optimizer learning rates by 0.6000.
+[SPARSE] Gaussian count pruned: 706661 -> 70000 (EDITSPLAT_MAX_GAUSSIANS=70000)
+[SPARSE] CameraDataset truncated to 6 views
+[SPARSE] CameraDataset truncated: 6 -> 1 views
+Initial editing progress:   0%|          | 0/1 [00:00<?, ?it/s]Initial editing progress: 100%|██████████| 1/1 [00:02<00:00,  2.86s/it]Initial editing progress: 100%|██████████| 1/1 [00:02<00:00,  2.86s/it]
+Depth processing progress:   0%|          | 0/1 [00:00<?, ?it/s]Depth processing progress: 100%|██████████| 1/1 [00:00<00:00, 5309.25it/s]
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+[IR] mode=keep_ratio keep_count=1 selected=[0]
+[FRONTIER] anchor=0 score=0.051488 neighbors=[]
+Multi-view reprojection progress:   0%|          | 0/1 [00:00<?, ?it/s]FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+Multi-view reprojection progress: 100%|██████████| 1/1 [00:06<00:00,  6.39s/it]Multi-view reprojection progress: 100%|██████████| 1/1 [00:06<00:00,  6.39s/it]
+[SAM3] predict start prompt=face default_device=cpu autocast_cuda_enabled=False
+[SAM3] mask stats prompt=face thr=0.180 mean=0.087 min=0.000 max=1.000
+[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.
+
+[EPOCH 0] Saving Gaussians
+
+[EPOCH 0] Saving Checkpoint
+
+[WARN] EDITSPLAT_SKIP_RENDER_SETS=1: skip final render_sets export.
+[INFO] External backend runtime summary: {'backend': 'wrapper_preloaded_sd3_adapter', 'device': 'cuda:0', 'mode': 'velocity', 'flow_method': 'flowedit'}
+[TTT3R] patched GaussianModel with advanced optimization techniques.

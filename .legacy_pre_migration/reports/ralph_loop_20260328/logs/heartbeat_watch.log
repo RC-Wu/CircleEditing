@@ -1,0 +1,50 @@
+=== 2026-03-27T20:43:53Z ===
+[gpu]
+0, NVIDIA A800-SXM4-80GB, 81920, 77521, 100
+1, NVIDIA A800-SXM4-80GB, 81920, 77179, 100
+2, NVIDIA A800-SXM4-80GB, 81920, 77249, 100
+3, NVIDIA A800-SXM4-80GB, 81920, 77119, 100
+4, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+5, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+6, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+7, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+[compute_apps]
+GPU-8c9aca24-59ae-d4d8-2028-90d3827ae341, NVIDIA A800-SXM4-80GB, 2096828, [Not Found], 77500 MiB
+GPU-f7a6576b-117a-9732-7a8d-b3c3b3326cf1, NVIDIA A800-SXM4-80GB, 2096829, [Not Found], 77158 MiB
+GPU-0393adbe-48e9-c30a-2b75-0364752f514f, NVIDIA A800-SXM4-80GB, 2096830, [Not Found], 77228 MiB
+GPU-8a8cb221-6729-3db9-067d-27f19fb08ddf, NVIDIA A800-SXM4-80GB, 2096831, [Not Found], 77098 MiB
+[storage]
+/dev_vepfs: 10T, used 9.5T, avail 571G, use 95%
+workspace_du: 4.5G
+report_du: 37K
+[advice]
+launch_window=closed
+No idle-safe relaunch window right now: this host already shows 4 active GPUs, so any new GPU launch would exceed the global <=4 cap unless it replaces an active job.
+
+=== 2026-03-27T21:00:04Z ===
+[gpu]
+0, NVIDIA A800-SXM4-80GB, 81920, 77521, 100
+1, NVIDIA A800-SXM4-80GB, 81920, 77179, 100
+2, NVIDIA A800-SXM4-80GB, 81920, 77249, 100
+3, NVIDIA A800-SXM4-80GB, 81920, 77119, 99
+4, NVIDIA A800-SXM4-80GB, 81920, 593, 0
+5, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+6, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+7, NVIDIA A800-SXM4-80GB, 81920, 2, 0
+[compute_apps]
+GPU-8c9aca24-59ae-d4d8-2028-90d3827ae341, NVIDIA A800-SXM4-80GB, 2096828, [Not Found], 77500 MiB
+GPU-f7a6576b-117a-9732-7a8d-b3c3b3326cf1, NVIDIA A800-SXM4-80GB, 2096829, [Not Found], 77158 MiB
+GPU-0393adbe-48e9-c30a-2b75-0364752f514f, NVIDIA A800-SXM4-80GB, 2096830, [Not Found], 77228 MiB
+GPU-8a8cb221-6729-3db9-067d-27f19fb08ddf, NVIDIA A800-SXM4-80GB, 2096831, [Not Found], 77098 MiB
+GPU-c3745177-8332-29e0-1653-67a183e93aeb, NVIDIA A800-SXM4-80GB, 981825, [Not Found], 584 MiB
+[storage]
+/dev_vepfs: 10T, used 9.5T, avail 567G, use 95%
+workspace_du: 5.0G
+report_du: 5.2M
+[safety]
+status=within-cap
+Current host-visible occupancy is within the <=4 active GPU cap.
+[advice]
+launch_window=closed
+No idle-safe relaunch window right now: this host already shows 4 active GPUs, so any new GPU launch would exceed the global <=4 cap unless it replaces an active job.
+

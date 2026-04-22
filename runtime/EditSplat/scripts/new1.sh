@@ -1,0 +1,1 @@
+python run_editing.py -s ./dataset/dataset/face -m output/face_to_hulk1110 --source_checkpoint ./dataset/pretrained/face/chkpnt30000.pth --object_prompt "face" --target_prompt "Make his face resemble that of a Hulk" --sampling_prompt "a photo of a Hulk" --target_mask_prompt "face"

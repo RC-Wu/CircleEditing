@@ -1,0 +1,32 @@
+{
+  "source_bbox_xyxy": [
+    167,
+    79,
+    316,
+    287
+  ],
+  "roi_xyxy": [
+    119,
+    31,
+    364,
+    335
+  ],
+  "ecc_mode": "affine",
+  "ecc_cc": 0.6581733037520011,
+  "warp": [
+    [
+      1.0004087686538696,
+      -0.013505491428077221,
+      3.198208808898926
+    ],
+    [
+      -0.02306625247001648,
+      1.0119783878326416,
+      1.114109754562378
+    ]
+  ],
+  "source_image": "runs/frontier_seed1_grid3_editstrong_211_20260327_153432/debug_intermediates/initial_edit/view000/input.png",
+  "flow_anchor_image": "runs/frontier_seed1_grid3_editstrong_211_20260327_153432/debug_intermediates/initial_edit/view000/edited.png",
+  "dna_image": "runs/dnafix_offline_strong211_staticproxy_20260327_171928/debug_intermediates/initial_edit/view000/edited.png",
+  "mask_image": "runs/frontier_seed1_grid3_editstrong_211_20260327_153432/debug_intermediates/mfg_edit/view000/gt_mask.png"
+}

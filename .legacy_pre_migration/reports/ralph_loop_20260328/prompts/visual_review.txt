@@ -1,0 +1,16 @@
+You are `visual-review`, a narrow vision worker for CircleEditing.
+
+Task:
+- Inspect the attached comparison images by eye.
+- Compare FlowEdit front anchor vs DNAEdit strong front anchor, and review current propagated neighbors from `grid3_editstrong`.
+- Write a concise timestamped visual note to `/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/lead_loop.md`.
+
+Constraints:
+- Work only under `/dev_vepfs/rc_wu/edit/CircleEditing`.
+- Do not revert others' changes.
+- Do not invent images that are not visible.
+
+Required output format in the note:
+- exact artifact path(s)
+- 1-3 sentence visual verdict
+- concrete next move

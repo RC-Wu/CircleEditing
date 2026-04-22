@@ -9,10 +9,17 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import json
+import os
+from pathlib import Path
 from typing import NamedTuple
-import torch.nn as nn
+
 import torch
+import torch.nn as nn
 from . import _C
+
+
+_DUMP_COUNTERS = {"forward": 0, "backward": 0}
 
 
 def cpu_deep_copy_tuple(input_tuple):
@@ -21,6 +28,120 @@ def cpu_deep_copy_tuple(input_tuple):
         for item in input_tuple
     ]
     return tuple(copied_tensors)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _tensor_debug_summary(tensor: torch.Tensor):
+    summary = {
+        "shape": list(tensor.shape),
+        "dtype": str(tensor.dtype),
+        "device": str(tensor.device),
+        "contiguous": bool(tensor.is_contiguous()),
+        "stride": list(tensor.stride()),
+        "storage_offset": int(tensor.storage_offset()),
+        "numel": int(tensor.numel()),
+        "data_ptr": int(tensor.data_ptr()),
+    }
+    if tensor.numel() > 0 and torch.is_floating_point(tensor):
+        finite = torch.isfinite(tensor.float())
+        summary["finite"] = bool(finite.all().item())
+        if summary["finite"]:
+            tensor32 = tensor.float()
+            summary["min"] = float(tensor32.min().item())
+            summary["max"] = float(tensor32.max().item())
+    return summary
+
+
+def _tensor_name_map(stage: str):
+    if stage == "forward":
+        return [
+            "bg",
+            "means3D",
+            "colors_precomp",
+            "opacities",
+            "scales",
+            "rotations",
+            "scale_modifier",
+            "cov3Ds_precomp",
+            "viewmatrix",
+            "projmatrix",
+            "tanfovx",
+            "tanfovy",
+            "image_height",
+            "image_width",
+            "sh",
+            "sh_degree",
+            "campos",
+            "prefiltered",
+            "debug",
+        ]
+    return [
+        "bg",
+        "means3D",
+        "radii",
+        "colors_precomp",
+        "scales",
+        "rotations",
+        "scale_modifier",
+        "cov3Ds_precomp",
+        "viewmatrix",
+        "projmatrix",
+        "tanfovx",
+        "tanfovy",
+        "grad_out_color",
+        "sh",
+        "sh_degree",
+        "campos",
+        "geomBuffer",
+        "num_rendered",
+        "binningBuffer",
+        "imgBuffer",
+        "debug",
+    ]
+
+
+def _debug_dump_dir():
+    root = (
+        os.environ.get("EDITSPLAT_RASTER_DEBUG_DIR")
+        or os.environ.get("EDITSPLAT_ACTIVE_MODEL_PATH")
+        or os.getcwd()
+    )
+    out_dir = Path(root) / "diffgs_debug"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+def _dump_arg_metadata(stage: str, args, extra=None):
+    if not _env_flag("EDITSPLAT_RASTER_DEBUG", False):
+        return
+    _DUMP_COUNTERS[stage] += 1
+    payload = {"stage": stage, "args": {}, "extra": extra or {}}
+    for name, value in zip(_tensor_name_map(stage), args):
+        if isinstance(value, torch.Tensor):
+            payload["args"][name] = _tensor_debug_summary(value)
+        else:
+            payload["args"][name] = value
+    out_path = _debug_dump_dir() / f"{stage}_{_DUMP_COUNTERS[stage]:03d}.json"
+    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _prepare_ext_tensor(name: str, tensor: torch.Tensor, *, clone_buffer: bool = False):
+    if tensor is None:
+        return None
+    out = tensor
+    if not out.is_contiguous():
+        out = out.contiguous()
+    if torch.is_floating_point(out) and not torch.isfinite(out.float()).all():
+        raise RuntimeError(f"non-finite diffgs tensor: {name}")
+    if clone_buffer and out.numel() > 0:
+        out = out.clone()
+    return out
 
 
 def rasterize_gaussians(
@@ -62,8 +183,20 @@ class _RasterizeGaussians(torch.autograd.Function):
         raster_settings,
     ):
         # Restructure arguments the way that the C++ lib expects them
+        means3D = _prepare_ext_tensor("means3D", means3D)
+        means2D = _prepare_ext_tensor("means2D", means2D)
+        sh = _prepare_ext_tensor("sh", sh)
+        colors_precomp = _prepare_ext_tensor("colors_precomp", colors_precomp)
+        opacities = _prepare_ext_tensor("opacities", opacities)
+        scales = _prepare_ext_tensor("scales", scales)
+        rotations = _prepare_ext_tensor("rotations", rotations)
+        cov3Ds_precomp = _prepare_ext_tensor("cov3Ds_precomp", cov3Ds_precomp)
+        bg = _prepare_ext_tensor("bg", raster_settings.bg)
+        viewmatrix = _prepare_ext_tensor("viewmatrix", raster_settings.viewmatrix)
+        projmatrix = _prepare_ext_tensor("projmatrix", raster_settings.projmatrix.float())
+        campos = _prepare_ext_tensor("campos", raster_settings.campos)
         args = (
-            raster_settings.bg,
+            bg,
             means3D,
             colors_precomp,
             opacities,
@@ -71,18 +204,19 @@ class _RasterizeGaussians(torch.autograd.Function):
             rotations,
             raster_settings.scale_modifier,
             cov3Ds_precomp,
-            raster_settings.viewmatrix,
-            raster_settings.projmatrix.float(),
+            viewmatrix,
+            projmatrix,
             raster_settings.tanfovx,
             raster_settings.tanfovy,
             raster_settings.image_height,
             raster_settings.image_width,
             sh,
             raster_settings.sh_degree,
-            raster_settings.campos,
+            campos,
             raster_settings.prefiltered,
             raster_settings.debug,
         )
+        _dump_arg_metadata("forward", args, extra={"c_ext": getattr(_C, "__file__", "unknown")})
 
         # Invoke C++/CUDA rasterizer
         if raster_settings.debug:
@@ -117,7 +251,17 @@ class _RasterizeGaussians(torch.autograd.Function):
             ) = _C.rasterize_gaussians(*args)
 
         # Keep relevant tensors for backward
-        ctx.raster_settings = raster_settings
+        clone_buffers = _env_flag("EDITSPLAT_RASTER_CLONE_BUFFERS", False)
+        radii = _prepare_ext_tensor("radii", radii, clone_buffer=clone_buffers)
+        geomBuffer = _prepare_ext_tensor("geomBuffer", geomBuffer, clone_buffer=clone_buffers)
+        binningBuffer = _prepare_ext_tensor("binningBuffer", binningBuffer, clone_buffer=clone_buffers)
+        imgBuffer = _prepare_ext_tensor("imgBuffer", imgBuffer, clone_buffer=clone_buffers)
+        ctx.raster_settings = raster_settings._replace(
+            bg=bg,
+            viewmatrix=viewmatrix,
+            projmatrix=projmatrix,
+            campos=campos,
+        )
         ctx.num_rendered = num_rendered
         ctx.save_for_backward(
             colors_precomp,
@@ -152,8 +296,23 @@ class _RasterizeGaussians(torch.autograd.Function):
         ) = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
+        grad_out_color = _prepare_ext_tensor("grad_out_color", grad_out_color)
+        radii = _prepare_ext_tensor("radii", radii)
+        colors_precomp = _prepare_ext_tensor("colors_precomp", colors_precomp)
+        means3D = _prepare_ext_tensor("means3D", means3D)
+        scales = _prepare_ext_tensor("scales", scales)
+        rotations = _prepare_ext_tensor("rotations", rotations)
+        cov3Ds_precomp = _prepare_ext_tensor("cov3Ds_precomp", cov3Ds_precomp)
+        sh = _prepare_ext_tensor("sh", sh)
+        geomBuffer = _prepare_ext_tensor("geomBuffer", geomBuffer)
+        binningBuffer = _prepare_ext_tensor("binningBuffer", binningBuffer)
+        imgBuffer = _prepare_ext_tensor("imgBuffer", imgBuffer)
+        bg = _prepare_ext_tensor("bg", raster_settings.bg)
+        viewmatrix = _prepare_ext_tensor("viewmatrix", raster_settings.viewmatrix)
+        projmatrix = _prepare_ext_tensor("projmatrix", raster_settings.projmatrix.float())
+        campos = _prepare_ext_tensor("campos", raster_settings.campos)
         args = (
-            raster_settings.bg,
+            bg,
             means3D,
             radii,
             colors_precomp,
@@ -161,20 +320,21 @@ class _RasterizeGaussians(torch.autograd.Function):
             rotations,
             raster_settings.scale_modifier,
             cov3Ds_precomp,
-            raster_settings.viewmatrix,
-            raster_settings.projmatrix.float(),
+            viewmatrix,
+            projmatrix,
             raster_settings.tanfovx,
             raster_settings.tanfovy,
             grad_out_color,
             sh,
             raster_settings.sh_degree,
-            raster_settings.campos,
+            campos,
             geomBuffer,
             num_rendered,
             binningBuffer,
             imgBuffer,
             raster_settings.debug,
         )
+        _dump_arg_metadata("backward", args, extra={"num_rendered": int(num_rendered)})
 
         # Compute gradients for relevant tensors by invoking backward method
         if raster_settings.debug:
@@ -362,3 +522,4 @@ class GaussianRasterizer(nn.Module):
         )
 
         _C.apply_weights(*args)
+

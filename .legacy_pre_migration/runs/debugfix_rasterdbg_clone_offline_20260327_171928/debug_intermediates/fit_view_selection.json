@@ -1,0 +1,13 @@
+{
+  "topk": 1,
+  "quantile": 0.75,
+  "selected_indices": [
+    0
+  ],
+  "scores": [
+    {
+      "idx": 0,
+      "score": 0.4773309826850891
+    }
+  ]
+}

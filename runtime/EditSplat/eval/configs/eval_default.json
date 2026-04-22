@@ -1,0 +1,11 @@
+{
+  "clip_backend": "auto",
+  "clip_model": "ViT-B/32",
+  "open_clip_pretrained": "laion2b_s34b_b79k",
+  "pairs_per_sample": 200,
+  "compute_reproj": true,
+  "compute_lpips": true,
+  "reproj_occlusion_abs": 0.02,
+  "reproj_occlusion_rel": 0.05,
+  "device": "cuda"
+}

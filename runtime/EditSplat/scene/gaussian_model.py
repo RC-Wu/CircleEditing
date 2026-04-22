@@ -35,6 +35,20 @@ from diff_gaussian_rasterization import (
     GaussianRasterizer,
 )
 
+
+def _as_parameter_on_device(tensor: torch.Tensor, device: torch.device) -> nn.Parameter:
+    if isinstance(tensor, nn.Parameter):
+        tensor = tensor.detach()
+    return nn.Parameter(tensor.to(device=device).contiguous().requires_grad_(True))
+
+
+def _move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: torch.device) -> None:
+    for state in optimizer.state.values():
+        for key, value in list(state.items()):
+            if torch.is_tensor(value):
+                state[key] = value.to(device=device).contiguous()
+
+
 # from knn import K_nearest_neighbors
 def camera2rasterizer(viewpoint_camera, bg_color: torch.Tensor, sh_degree: int = 0):
     tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
@@ -148,7 +162,7 @@ class GaussianModel:
             self.spatial_lr_scale,
         )
 
-    def restore(self, model_args, training_args):
+    def restore(self, model_args, training_args, device: torch.device = "cuda"):
         (
             self.active_sh_degree,
             self._xyz,
@@ -163,11 +177,30 @@ class GaussianModel:
             opt_dict,
             self.spatial_lr_scale,
         ) = model_args
+        if not isinstance(device, torch.device):
+            device = torch.device(device)
+        self._xyz = _as_parameter_on_device(self._xyz, device)
+        self._features_dc = _as_parameter_on_device(self._features_dc, device)
+        self._features_rest = _as_parameter_on_device(self._features_rest, device)
+        self._scaling = _as_parameter_on_device(self._scaling, device)
+        self._rotation = _as_parameter_on_device(self._rotation, device)
+        self._opacity = _as_parameter_on_device(self._opacity, device)
+        self.max_radii2D = self.max_radii2D.to(device=device).contiguous()
+        xyz_gradient_accum = xyz_gradient_accum.to(device=device).contiguous()
+        denom = denom.to(device=device).contiguous()
         self.training_setup(training_args)
-        # self.load_ply(training_args.ply_path)
         self.xyz_gradient_accum = xyz_gradient_accum
         self.denom = denom
+        self.set_mask(
+            torch.ones(
+                self._opacity.shape[0],
+                dtype=torch.bool,
+                device=device,
+                requires_grad=False,
+            )
+        )
         self.optimizer.load_state_dict(opt_dict)
+        _move_optimizer_state_to_device(self.optimizer, device)
 
     def prune_with_mask(self, new_mask=None):
         self.prune_points(self.mask)  # all the mask with value 1 are pruned
@@ -284,9 +317,10 @@ class GaussianModel:
         self.apply_grad_mask(self.mask)
 
     def training_setup(self, training_args):
+        device = self.get_xyz.device
         self.percent_dense = training_args.percent_dense
-        self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
-        self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
+        self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device=device)
+        self.denom = torch.zeros((self.get_xyz.shape[0], 1), device=device)
 
         l = [
             {
@@ -771,6 +805,30 @@ class GaussianModel:
 
     def apply_weights(self, camera, weights, weights_cnt, image_weights):
         device = self.get_xyz.device
+        expected_hw = (int(camera.image_height), int(camera.image_width))
+        if weights.shape != self.get_opacity.shape:
+            raise RuntimeError(f"apply_weights expected weights shape {tuple(self.get_opacity.shape)}, got {tuple(weights.shape)}")
+        if weights_cnt.shape != self.get_opacity.shape:
+            raise RuntimeError(f"apply_weights expected weights_cnt shape {tuple(self.get_opacity.shape)}, got {tuple(weights_cnt.shape)}")
+        if image_weights.ndim != 4 or image_weights.shape[0] != 1:
+            raise RuntimeError(f"apply_weights expected image_weights shape [1,1,H,W], got {tuple(image_weights.shape)}")
+        if tuple(image_weights.shape[-2:]) != expected_hw:
+            raise RuntimeError(
+                f"apply_weights expected image_weights spatial size {expected_hw}, got {tuple(image_weights.shape[-2:])}"
+            )
+        for name, tensor in {
+            "weights": weights,
+            "weights_cnt": weights_cnt,
+            "image_weights": image_weights,
+            "xyz": self.get_xyz,
+            "opacity": self.get_opacity,
+            "scaling": self.get_scaling,
+            "rotation": self.get_rotation,
+        }.items():
+            if tensor.device != device:
+                raise RuntimeError(f"apply_weights device mismatch for {name}: {tensor.device} != {device}")
+            if not torch.isfinite(tensor.float()).all():
+                raise RuntimeError(f"apply_weights received non-finite tensor: {name}")
         rasterizer = camera2rasterizer(
             camera, torch.tensor([0.0, 0.0, 0.0], dtype=torch.float32, device=device)
         )
@@ -889,3 +947,4 @@ class GaussianModel:
         self.mask = torch.cat([self.mask, torch.ones_like(new_opacities[:, 0], dtype=torch.bool)], dim=0)
         self.remove_grad_mask()
         self.apply_grad_mask(self.mask)
+

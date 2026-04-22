@@ -1,0 +1,98 @@
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+... loading model from /dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+instantiating : ARCroco3DStereo(ARCroco3DStereoConfig(freeze='encoder',state_size=768,state_pe='2d',pos_embed='RoPE100',rgb_head=True,pose_head=True,patch_embed_cls='PatchEmbedDust3R',img_size=(512,512),head_type='dpt',output_mode='pts3d+pose',depth_mode=('exp',-inf,inf),conf_mode=('exp',1,inf),pose_mode=('exp',-inf,inf),enc_embed_dim=1024,enc_depth=24,enc_num_heads=16,dec_embed_dim=768,dec_depth=12,dec_num_heads=12,landscape_only=False))
+<All keys matched successfully>
+[TTT3R] loaded checkpoint=/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth update_type=ttt3r device=cuda:0
+[TTT3R] patched dust3r.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched dust3r.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched croco.models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched croco.models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched models.blocks.CrossAttention.forward for CPU-safe RoPE.
+Couldn't connect to the Hub: (MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /api/models/black-forest-labs/FLUX.1-dev (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f20a9ebb0a0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 4cc0b9c2-b4ae-4e8c-8860-a97dc8e37115)').
+Will try to load from local cache.
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connection.py", line 198, in _new_conn
+    sock = connection.create_connection(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/util/connection.py", line 85, in create_connection
+    raise err
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/util/connection.py", line 73, in create_connection
+    sock.connect(sa)
+OSError: [Errno 101] Network is unreachable
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connectionpool.py", line 488, in _make_request
+    raise new_e
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connectionpool.py", line 464, in _make_request
+    self._validate_conn(conn)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connectionpool.py", line 1093, in _validate_conn
+    conn.connect()
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connection.py", line 753, in connect
+    self.sock = sock = self._new_conn()
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connection.py", line 213, in _new_conn
+    raise NewConnectionError(
+urllib3.exceptions.NewConnectionError: <urllib3.connection.HTTPSConnection object at 0x7f20a9ebb0a0>: Failed to establish a new connection: [Errno 101] Network is unreachable
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/requests/adapters.py", line 644, in send
+    resp = conn.urlopen(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/urllib3/util/retry.py", line 519, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /api/models/black-forest-labs/FLUX.1-dev (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f20a9ebb0a0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/diffusers/pipelines/pipeline_utils.py", line 1598, in download
+    info = model_info(pretrained_model_name, token=token, revision=revision)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/hf_api.py", line 2660, in model_info
+    r = get_session().get(path, headers=headers, timeout=timeout, params=params)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/requests/sessions.py", line 602, in get
+    return self.request("GET", url, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_http.py", line 95, in send
+    return super().send(request, *args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/requests/adapters.py", line 677, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: (MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /api/models/black-forest-labs/FLUX.1-dev (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f20a9ebb0a0>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: 4cc0b9c2-b4ae-4e8c-8860-a97dc8e37115)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1482, in <module>
+    main()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1461, in main
+    _LEGACY_WRAPPER.main()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260319_aris_ttt3r_flowedit_45/scripts/run_sd35_ttt3r_proximal_wrapper.py", line 1321, in main
+    pipeline = Editsplat_Pipeline.from_pretrained(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/diffusers/pipelines/pipeline_utils.py", line 829, in from_pretrained
+    cached_folder = cls.download(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/diffusers/pipelines/pipeline_utils.py", line 1792, in download
+    raise EnvironmentError(
+OSError: Cannot load model black-forest-labs/FLUX.1-dev: model is not cached locally and an error occurred while trying to fetch metadata from the Hub. Please check out the root cause in the stacktrace above.

@@ -1,0 +1,73 @@
+{
+  "gt": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.681059718132019
+  },
+  "reprojected": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 0.0,
+    "mean": 0.0
+  },
+  "mask": {
+    "shape": [
+      1,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.07077407836914062
+  },
+  "mf_cond": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.6343104243278503
+  },
+  "mfg_output": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": -1.4351806640625,
+    "max": 1.2385092973709106,
+    "mean": -0.36786922812461853
+  },
+  "meta": {
+    "mfg_mode": "frontier_seed1",
+    "mfg_backfill": "nearest",
+    "frontier_anchor_idx": 0,
+    "source_indices": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "selected_source_indices": [
+      0,
+      1,
+      2
+    ]
+  }
+}

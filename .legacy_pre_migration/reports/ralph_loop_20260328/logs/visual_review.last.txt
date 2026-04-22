@@ -1,0 +1,3 @@
+Appended the visual note to [lead_loop.md](/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/lead_loop.md).
+
+The note references the two exact artifacts, records the verdict that FlowEdit front anchor is more source-faithful while DNAEdit strong front anchor is visually stronger but drifts more, and flags that the current `grid3_editstrong` neighbors are not holding the same makeup style tightly enough.

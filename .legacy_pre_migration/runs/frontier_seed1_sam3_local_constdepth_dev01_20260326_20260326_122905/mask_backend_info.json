@@ -1,0 +1,42 @@
+{
+  "requested": "sam3",
+  "effective": "sam3",
+  "detail": "sam3_device=cpu; sam3_confidence_fallback=0.000; sam3_confidence_fallback=0.000",
+  "sam3_mask_stats": [
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.0867462158203125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.01660919189453125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.13274383544921875,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.01660919189453125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.07077407836914062,
+      "min": 0.0,
+      "max": 1.0
+    }
+  ]
+}

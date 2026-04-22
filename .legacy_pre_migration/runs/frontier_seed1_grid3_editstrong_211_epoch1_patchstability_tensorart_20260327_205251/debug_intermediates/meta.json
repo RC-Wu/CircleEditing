@@ -1,0 +1,17 @@
+{
+  "mode": "velocity",
+  "support_views": 2,
+  "support_stride": 1,
+  "conf_power": 1.0,
+  "conf_floor": 0.0,
+  "geo_scale": 1.0,
+  "prox_strength": 0.55,
+  "preserve_strength": 0.18,
+  "edit_boost": 1.0,
+  "preserve_boost": 1.0,
+  "edit_min_mass": 0.0,
+  "preserve_min_mass": 0.0,
+  "adaptive_max_scale": 3.2,
+  "schedule_power": 1.8,
+  "edit_mask_quantile": 0.9
+}

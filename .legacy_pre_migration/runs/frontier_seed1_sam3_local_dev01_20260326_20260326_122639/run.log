@@ -1,0 +1,116 @@
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+[TTT3R] forcing CPU runtime (gpu_flag=-1 force_cpu_env=0).
+... loading model from /dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+instantiating : ARCroco3DStereo(ARCroco3DStereoConfig(freeze='encoder',state_size=768,state_pe='2d',pos_embed='RoPE100',rgb_head=True,pose_head=True,patch_embed_cls='PatchEmbedDust3R',img_size=(512,512),head_type='dpt',output_mode='pts3d+pose',depth_mode=('exp',-inf,inf),conf_mode=('exp',1,inf),pose_mode=('exp',-inf,inf),enc_embed_dim=1024,enc_depth=24,enc_num_heads=16,dec_embed_dim=768,dec_depth=12,dec_num_heads=12,landscape_only=False))
+<All keys matched successfully>
+[TTT3R] loaded checkpoint=/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth update_type=ttt3r device=cpu
+[TTT3R] patched dust3r.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched dust3r.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched croco.models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched croco.models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] cast CPU runtime model to float32.
+Couldn't connect to the Hub: Cannot reach https://huggingface.co/api/models/cocktailpeanut/xulf-s: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable..
+Will try to load from local cache.
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]Loading pipeline components...:  29%|██▊       | 2/7 [00:00<00:00,  9.11it/s]Loading pipeline components...:  57%|█████▋    | 4/7 [00:00<00:00,  5.16it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s][A
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:00,  3.64it/s][A
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:00<00:00,  3.66it/s][A
+Loading checkpoint shards: 100%|██████████| 3/3 [00:00<00:00,  5.01it/s][ALoading checkpoint shards: 100%|██████████| 3/3 [00:00<00:00,  4.55it/s]
+Loading pipeline components...:  86%|████████▌ | 6/7 [00:01<00:00,  3.37it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][A
+Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 13.79it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 13.77it/s]
+Loading pipeline components...: 100%|██████████| 7/7 [00:01<00:00,  3.65it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:01<00:00,  3.96it/s]
+Loading pipeline components...:   0%|          | 0/9 [00:00<?, ?it/s]Loading pipeline components...:  22%|██▏       | 2/9 [00:00<00:00, 12.86it/s]Loading pipeline components...:  44%|████▍     | 4/9 [00:01<00:01,  2.62it/s]Loading pipeline components...:  56%|█████▌    | 5/9 [00:01<00:01,  3.31it/s]Loading pipeline components...:  67%|██████▋   | 6/9 [00:01<00:00,  4.03it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][A
+Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  1.67it/s][A
+Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.64it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.65it/s]
+Loading pipeline components...:  78%|███████▊  | 7/9 [00:02<00:01,  1.80it/s]Loading pipeline components...:  89%|████████▉ | 8/9 [00:12<00:03,  3.25s/it]Loading pipeline components...: 100%|██████████| 9/9 [00:13<00:00,  2.50s/it]Loading pipeline components...: 100%|██████████| 9/9 [00:13<00:00,  1.46s/it]
+[TTT3R] copied source point cloud from /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/compat_pretrained_face/point_cloud/iteration_7004/point_cloud.ply -> /dev_vepfs/rc_wu/CircleEditing/runs/frontier_seed1_sam3_local_dev01_20260326_20260326_122639/point_cloud/iteration_7004/point_cloud.ply
+[WARN] ImageReward import failed; using dummy reward ranker.
+[SAM3] adapter init env_device=cpu
+[SAM3] confidence fallback ladder=[0.12, 0.08, 0.04, 0.0]
+[SAM3] seeded HuggingFace token from /dev_vepfs/rc_wu/.huggingface/token
+UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+DEBUG:root:Falling back to triton or CPU mask NMS implementation -- please install `torch_generic_nms` via
+	pip uninstall -y torch_generic_nms; TORCH_CUDA_ARCH_LIST="8.0 9.0" pip install git+https://github.com/ronghanghu/torch_generic_nms
+[SAM3] Found SAM3 module, attempting to load...
+[SAM3] patched TransformerDecoder._get_rpb_matrix for cache/device consistency.
+[SAM3] device candidates=['cpu']
+[SAM3] loading official backend on device=cpu ...
+[SAM3] loaded official image segmentation backend on cpu.
+[SAM3] confidence threshold set to 0.180
+source_path /dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset/face
+Loading trained model at iteration 7004
+Reading camera 1/65Reading camera 2/65Reading camera 3/65Reading camera 4/65Reading camera 5/65Reading camera 6/65Reading camera 7/65Reading camera 8/65Reading camera 9/65Reading camera 10/65Reading camera 11/65Reading camera 12/65Reading camera 13/65Reading camera 14/65Reading camera 15/65Reading camera 16/65Reading camera 17/65Reading camera 18/65Reading camera 19/65Reading camera 20/65Reading camera 21/65Reading camera 22/65Reading camera 23/65Reading camera 24/65Reading camera 25/65Reading camera 26/65Reading camera 27/65Reading camera 28/65Reading camera 29/65Reading camera 30/65Reading camera 31/65Reading camera 32/65Reading camera 33/65Reading camera 34/65Reading camera 35/65Reading camera 36/65Reading camera 37/65Reading camera 38/65Reading camera 39/65Reading camera 40/65Reading camera 41/65Reading camera 42/65Reading camera 43/65Reading camera 44/65Reading camera 45/65Reading camera 46/65Reading camera 47/65Reading camera 48/65Reading camera 49/65Reading camera 50/65Reading camera 51/65Reading camera 52/65Reading camera 53/65Reading camera 54/65Reading camera 55/65Reading camera 56/65Reading camera 57/65Reading camera 58/65Reading camera 59/65Reading camera 60/65Reading camera 61/65Reading camera 62/65Reading camera 63/65Reading camera 64/65Reading camera 65/65
+Loading Training Cameras
+Loading Test Cameras
+[WARN] sandbox wrapper scaling optimizer learning rates by 0.5200.
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+[SPARSE] Gaussian count pruned: 706661 -> 70000 (EDITSPLAT_MAX_GAUSSIANS=70000)
+[SPARSE] CameraDataset truncated to 6 views
+[SPARSE] CameraDataset truncated: 6 -> 3 views
+Initial editing progress:   0%|          | 0/3 [00:00<?, ?it/s]Initial editing progress:  33%|███▎      | 1/3 [00:02<00:05,  2.80s/it]Initial editing progress:  67%|██████▋   | 2/3 [00:04<00:01,  1.98s/it]Initial editing progress: 100%|██████████| 3/3 [00:05<00:00,  1.71s/it]Initial editing progress: 100%|██████████| 3/3 [00:05<00:00,  1.87s/it]
+Depth processing progress:   0%|          | 0/3 [00:00<?, ?it/s]Depth processing progress:  33%|███▎      | 1/3 [00:00<00:01,  1.66it/s][WARN] Depth rendering failed at idx=1: CUDA error: an illegal memory access was encountered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+. Using constant depth fallback.
+[WARN] torch.cuda.empty_cache() failed after depth fallback: CUDA error: an illegal memory access was encountered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[WARN] Depth rendering failed at idx=2: CUDA error: an illegal memory access was encountered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+. Using constant depth fallback.
+[WARN] torch.cuda.empty_cache() failed after depth fallback: CUDA error: an illegal memory access was encountered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+Depth processing progress: 100%|██████████| 3/3 [00:00<00:00,  4.74it/s]
+FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+[IR] mode=all keep_count=3 selected=[0, 1, 2]
+[FRONTIER] anchor=0 score=0.044224 neighbors=[1, 2]
+Multi-view reprojection progress:   0%|          | 0/3 [00:00<?, ?it/s]Multi-view reprojection progress:   0%|          | 0/3 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1461, in main
+    _LEGACY_WRAPPER.main()
+  File "/dev_vepfs/rc_wu/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260319_aris_ttt3r_flowedit_45/scripts/run_sd35_ttt3r_proximal_wrapper.py", line 1455, in main
+    _ = pipeline(
+  File "/dev_vepfs/rc_wu/CircleEditing/runtime/EditSplat_overlay_20260326/run_editing_flow.py", line 1598, in __call__
+    for step, batch in enumerate(tqdm(train_dataloader, desc="Multi-view reprojection progress")):
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 630, in __next__
+    data = self._next_data()
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 673, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/dev_vepfs/rc_wu/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260319_aris_ttt3r_flowedit_45/scripts/run_sd35_ttt3r_proximal_wrapper.py", line 431, in _getitem
+    return orig_getitem(self, idx)
+  File "/dev_vepfs/rc_wu/CircleEditing/runtime/EditSplat_overlay_20260326/scene/dataloader.py", line 19, in __getitem__
+    gt_image = gt_image.to(device="cpu", non_blocking=False)
+RuntimeError: CUDA error: an illegal memory access was encountered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[WARN] sandbox wrapper caught CUDA runtime memory fault; preserving partial artifacts and continuing keepalive loop.
+[TTT3R] patched GaussianModel with advanced optimization techniques.

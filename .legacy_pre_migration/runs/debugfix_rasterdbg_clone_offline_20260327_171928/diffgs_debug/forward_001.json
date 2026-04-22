@@ -1,0 +1,213 @@
+{
+  "stage": "forward",
+  "args": {
+    "bg": {
+      "shape": [
+        3
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 3,
+      "data_ptr": 140431528519680,
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "means3D": {
+      "shape": [
+        70000,
+        3
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        3,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 210000,
+      "data_ptr": 140429221691392,
+      "finite": true,
+      "min": -21.544031143188477,
+      "max": 21.03549575805664
+    },
+    "colors_precomp": {
+      "shape": [
+        0
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 0,
+      "data_ptr": 0
+    },
+    "opacities": {
+      "shape": [
+        70000,
+        1
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        1,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 70000,
+      "data_ptr": 140429220714496,
+      "finite": true,
+      "min": 0.005003074649721384,
+      "max": 0.9999980926513672
+    },
+    "scales": {
+      "shape": [
+        70000,
+        3
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        3,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 210000,
+      "data_ptr": 140429225885696,
+      "finite": true,
+      "min": 3.238289423279639e-07,
+      "max": 0.6094611883163452
+    },
+    "rotations": {
+      "shape": [
+        70000,
+        4
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        4,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 280000,
+      "data_ptr": 140455919222784,
+      "finite": true,
+      "min": -0.9984112977981567,
+      "max": 0.9999820590019226
+    },
+    "scale_modifier": 1.0,
+    "cov3Ds_precomp": {
+      "shape": [
+        0
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 0,
+      "data_ptr": 0
+    },
+    "viewmatrix": {
+      "shape": [
+        4,
+        4
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        4,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 16,
+      "data_ptr": 140431528520192,
+      "finite": true,
+      "min": -1.9504340887069702,
+      "max": 1.7167139053344727
+    },
+    "projmatrix": {
+      "shape": [
+        4,
+        4
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        4,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 16,
+      "data_ptr": 140431562109952,
+      "finite": true,
+      "min": -4.164791584014893,
+      "max": 2.106684446334839
+    },
+    "tanfovx": 0.476515544481617,
+    "tanfovy": 0.46831494766653076,
+    "image_height": 512,
+    "image_width": 512,
+    "sh": {
+      "shape": [
+        70000,
+        16,
+        3
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        48,
+        3,
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 3360000,
+      "data_ptr": 140429760659456,
+      "finite": true,
+      "min": -1.9771432876586914,
+      "max": 5.219363689422607
+    },
+    "sh_degree": 3,
+    "campos": {
+      "shape": [
+        3
+      ],
+      "dtype": "torch.float32",
+      "device": "cuda:0",
+      "contiguous": true,
+      "stride": [
+        1
+      ],
+      "storage_offset": 0,
+      "numel": 3,
+      "data_ptr": 140431528521216,
+      "finite": true,
+      "min": -0.8902947306632996,
+      "max": 2.1659557819366455
+    },
+    "prefiltered": false,
+    "debug": true
+  },
+  "extra": {
+    "c_ext": "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/diffgs_patch_20260326/diff_gaussian_rasterization/_C.cpython-39-x86_64-linux-gnu.so"
+  }
+}

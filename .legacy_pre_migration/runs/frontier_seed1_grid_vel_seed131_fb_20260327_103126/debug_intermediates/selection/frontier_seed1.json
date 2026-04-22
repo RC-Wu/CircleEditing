@@ -1,0 +1,13 @@
+{
+  "anchor_idx": 0,
+  "anchor_score": 0.04537154361605644,
+  "neighbor_indices": [
+    1,
+    2
+  ],
+  "candidate_indices": [
+    0,
+    1,
+    2
+  ]
+}

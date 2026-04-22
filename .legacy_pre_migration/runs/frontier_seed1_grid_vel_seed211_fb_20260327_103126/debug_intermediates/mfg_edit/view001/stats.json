@@ -1,0 +1,89 @@
+{
+  "gt": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.6061758399009705
+  },
+  "reprojected": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 0.0,
+    "mean": 0.0
+  },
+  "proxy_rgb": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 0.0,
+    "mean": 0.0
+  },
+  "mask": {
+    "shape": [
+      1,
+      512,
+      512
+    ],
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.13274383544921875
+  },
+  "mf_cond": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": -1.0903716087341309,
+    "max": 1.060773491859436,
+    "mean": 0.5574405193328857
+  },
+  "mfg_output": {
+    "shape": [
+      1,
+      3,
+      512,
+      512
+    ],
+    "min": -1.0650748014450073,
+    "max": 1.119562029838562,
+    "mean": 0.20360523462295532
+  },
+  "meta": {
+    "mfg_mode": "frontier_seed1",
+    "mfg_backfill": "nearest",
+    "frontier_anchor_idx": 0,
+    "source_indices": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "selected_source_indices": [
+      0,
+      1,
+      2
+    ],
+    "frontier_fallback_enabled": true,
+    "frontier_fallback_triggered": true,
+    "frontier_proxy_mean": 0.0,
+    "frontier_proxy_std": 0.0,
+    "frontier_proxy_coverage": 0.13274383544921875
+  }
+}

@@ -1,0 +1,27 @@
+You are `lead-launch-fix`, a narrow remote execution worker for CircleEditing.
+
+Work only under `/dev_vepfs/rc_wu/edit/CircleEditing`.
+Do not revert others' changes.
+
+Interpret the GPU cap as applying to this task's launches, not unrelated jobs already running on the host. For this task, using one idle GPU from `4-7` is within the `<= 4 GPUs total across machines` cap because this task currently has no active launches.
+
+Task:
+1. Read:
+   - `/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/lead_loop.md`
+   - `/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/kernel_track.md`
+   - `/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/method_track.md`
+2. Launch the corrected practical 3-view patch-stability rerun on one idle GPU in `4-7`.
+3. Force the known-working cached model surface by exporting:
+   - `EDITSPLAT_BASE_MODEL_ID=cocktailpeanut/xulf-s`
+   - `FLOWEDIT_SD35_MEDIUM_TURBO_OPEN_MODEL_ID=cocktailpeanut/xulf-s`
+4. Keep the practical frontier lane:
+   - `flow_method=flowedit`
+   - `flow_model_key=sd35-medium-turbo-open`
+   - `ttt3r_mode=velocity`
+   - `skip_agt=true`
+   - `epoch=1`
+   - 3-view practical route, matching `grid3_editstrong` guidance as closely as possible
+5. Capture the exact run path and launcher command in `lead_loop.md` before and after launch.
+6. If the run completes soon enough, inspect logs and produced images by eye if possible; otherwise at least record status and next poll target.
+
+Use `/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python` if you need Python.

@@ -1,0 +1,91 @@
+{
+  "requested": "sam3",
+  "effective": "sam3",
+  "detail": "sam3_device=cuda; sam3_confidence_fallback=0.000; sam3_confidence_fallback=0.040; sam3_confidence_fallback=0.000; sam3_confidence_fallback=0.000",
+  "sam3_mask_stats": [
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.016632080078125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.08672332763671875,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.4232139587402344,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.13273239135742188,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.04,
+      "mean": 0.000110626220703125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.0707855224609375,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.05728912353515625,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.10938644409179688,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.016632080078125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.13672637939453125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.016632080078125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.09466934204101562,
+      "min": 0.0,
+      "max": 1.0
+    }
+  ]
+}

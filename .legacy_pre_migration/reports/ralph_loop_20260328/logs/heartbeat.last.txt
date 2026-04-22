@@ -1,0 +1,8 @@
+Updated the heartbeat tracking and appended a fresh UTC status block to [heartbeat.md](/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/heartbeat.md). I also upgraded [heartbeat_watch.sh](/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/heartbeat_watch.sh) so it non-destructively appends future snapshots to the Markdown report and records a raw log at [heartbeat_watch.log](/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/logs/heartbeat_watch.log).
+
+Current host status at `2026-03-27T20:43:53Z`: GPUs `0-3` are fully occupied, GPUs `4-7` are idle, `/dev_vepfs` is `95%` used with `571G` free, and the `CircleEditing` workspace is `4.5G`, which stays within the `50G` mutable-footprint guardrail. Relaunch advice is currently closed: because this host already has `4` active GPUs, starting another GPU job now would violate the global `<=4` cap unless it replaces an active job.
+
+To append another heartbeat later, run:
+```bash
+/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/heartbeat_watch.sh
+```

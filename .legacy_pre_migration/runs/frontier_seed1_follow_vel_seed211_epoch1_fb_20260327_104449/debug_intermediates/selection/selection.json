@@ -1,0 +1,26 @@
+{
+  "filter_mode": "keep_ratio",
+  "filtering_ratio": 0.85,
+  "keep_count": 3,
+  "ranks": [
+    1,
+    2,
+    3
+  ],
+  "rewards": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "selected": [
+    true,
+    true,
+    true
+  ],
+  "sampling_prompt": "the same man with clown makeup, same framing and identity",
+  "selected_indices": [
+    0,
+    1,
+    2
+  ]
+}

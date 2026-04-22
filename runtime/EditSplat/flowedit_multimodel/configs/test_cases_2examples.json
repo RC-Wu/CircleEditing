@@ -1,0 +1,14 @@
+[
+  {
+    "name": "face_marble",
+    "image": "/dev-vepfs/rc_wu/rc_wu/edit/EditSplat/dataset/dataset/face/_images_/frame_00010.jpg",
+    "src_prompt": "a photo of a young man with wavy light-brown hair, wearing a gray zip sweater",
+    "tar_prompt": "a photo of a realistic white marble sculpture bust of the same young man"
+  },
+  {
+    "name": "bear_marble",
+    "image": "/dev-vepfs/rc_wu/rc_wu/edit/EditSplat/dataset/dataset/bear/images_8/frame_00010.jpg",
+    "src_prompt": "a photo of a brown teddy bear toy",
+    "tar_prompt": "a photo of the same teddy bear made of white marble, highly detailed"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "filter_mode": "all",
+  "filter_keep_count": -1,
+  "mfg_mode": "frontier_seed1",
+  "mfg_backfill": "nearest",
+  "mfg_source_count": 5,
+  "skip_agt": false
+}

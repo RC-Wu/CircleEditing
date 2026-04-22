@@ -1,0 +1,17 @@
+{
+  "mode": "initial_edit",
+  "quantile": 0.75,
+  "bg": 0.05,
+  "mean": 0.5541555881500244,
+  "min": 0.05354664474725723,
+  "max": 1.0,
+  "sam_support": true,
+  "sam_support_role": "gt_view",
+  "sam_support_alpha": 1.0,
+  "sam_support_meta": {
+    "prompt": "face",
+    "backend": "sam3",
+    "detail": "thr=0.180",
+    "role": "gt_view"
+  }
+}

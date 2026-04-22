@@ -1,0 +1,91 @@
+{
+  "requested": "sam3",
+  "effective": "sam3",
+  "detail": "sam3_device=cpu; sam3_confidence_fallback=0.000; sam3_confidence_fallback=0.080; sam3_confidence_fallback=0.000; sam3_confidence_fallback=0.000",
+  "sam3_mask_stats": [
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.01660919189453125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.0867462158203125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.4231109619140625,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.13274383544921875,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.08,
+      "mean": 0.0001068115234375,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.07077407836914062,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.057430267333984375,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.10930252075195312,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.01660919189453125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.13674545288085938,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.0,
+      "mean": 0.01660919189453125,
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "prompt": "face",
+      "threshold": 0.18,
+      "mean": 0.09467315673828125,
+      "min": 0.0,
+      "max": 1.0
+    }
+  ]
+}

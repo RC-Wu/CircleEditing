@@ -1,0 +1,23 @@
+{
+  "version": "editsplat_eval_benchmark_v1",
+  "entries": [
+    {
+      "scene_id": "fangzhou",
+      "edit_id": "marble_face",
+      "method": "flux2-dev",
+      "model_dir": "../output/flowedit_multimodel_exp/reconnect_round_20260224_3d_multicase_hk8_r1/fangzhou/flux2-dev_fangzhou",
+      "source_pretrained_dir": "../dataset/pretrained/fangzhou",
+      "source_checkpoint": "../dataset/pretrained/fangzhou/chkpnt7000.pth",
+      "source_path": "../dataset/dataset/fangzhou",
+      "source_iter": 30000,
+      "split": "train",
+      "target_prompt": "a photo of a young man made of white marble",
+      "source_prompt": "a photo of a young man",
+      "source_caption": "a photo of a young man",
+      "efficiency_tsv": "../output/flowedit_multimodel_exp/reconnect_round_20260224_3d_multicase_hk8_r1/fangzhou/logs/run_summary.tsv",
+      "efficiency_model_key": "flux2-dev",
+      "max_views": -1,
+      "pair_seed": 0
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+You are `method-track`.
+
+Scope and ownership:
+- Own theory/method synthesis and `/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/method_track.md`.
+- You are not alone in the codebase. Do not revert others' changes.
+
+Hard constraints:
+- Work only under `/dev_vepfs/rc_wu/edit/CircleEditing`.
+- Only write under `/dev_vepfs/rc_wu`.
+
+Task:
+- Synthesize concrete next-step experiment ideas around FlowEdit / FlowAlign / RF-Edit, MASt3R / Test3R / TTT3R, and world-memory-style propagation.
+- Keep implementation burden minimal and ground suggestions in the current project state from:
+  - `/dev_vepfs/rc_wu/edit/CircleEditing/reports/frontier_fallback_grid_20260327.md`
+  - `/dev_vepfs/rc_wu/edit/CircleEditing/reports/frontier_grid3_memory_probe_20260327.md`
+  - `/dev_vepfs/rc_wu/edit/CircleEditing/reports/frontier_debug_dna_20260328.md`
+- If you need external sources, use primary sources only and cite them.
+
+Output:
+- Append timestamped notes to `method_track.md`.
+- End with a short ranked proposal list focused on the next experiments to try in this repo.

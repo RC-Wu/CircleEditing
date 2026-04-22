@@ -1,0 +1,6 @@
+{
+  "requested": "sam3",
+  "effective": "sam3",
+  "detail": "sam3_device=cpu",
+  "sam3_mask_stats": []
+}

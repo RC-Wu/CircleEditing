@@ -1,0 +1,71 @@
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+... loading model from /dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+instantiating : ARCroco3DStereo(ARCroco3DStereoConfig(freeze='encoder',state_size=768,state_pe='2d',pos_embed='RoPE100',rgb_head=True,pose_head=True,patch_embed_cls='PatchEmbedDust3R',img_size=(512,512),head_type='dpt',output_mode='pts3d+pose',depth_mode=('exp',-inf,inf),conf_mode=('exp',1,inf),pose_mode=('exp',-inf,inf),enc_embed_dim=1024,enc_depth=24,enc_num_heads=16,dec_embed_dim=768,dec_depth=12,dec_num_heads=12,landscape_only=False))
+<All keys matched successfully>
+[TTT3R] loaded checkpoint=/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth update_type=ttt3r device=cuda:0
+[TTT3R] patched dust3r.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched dust3r.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched croco.models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched croco.models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched models.blocks.CrossAttention.forward for CPU-safe RoPE.
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]Loading pipeline components...:  14%|█▍        | 1/7 [00:00<00:02,  2.75it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][A
+Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  9.60it/s][A
+Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00,  9.25it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00,  9.29it/s]
+Loading pipeline components...:  29%|██▊       | 2/7 [00:00<00:01,  3.23it/s]Loading pipeline components...:  57%|█████▋    | 4/7 [00:01<00:00,  3.96it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s][A
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.40it/s][A
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.80it/s][A
+Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  2.56it/s][ALoading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  2.22it/s]
+Loading pipeline components...:  71%|███████▏  | 5/7 [00:02<00:01,  1.54it/s]Loading pipeline components...:  86%|████████▌ | 6/7 [00:02<00:00,  2.07it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:02<00:00,  2.57it/s]
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/flowedit_multimodel/src/flowedit_adapters.py", line 1254, in create_adapter
+    pipe = _load_sd3_pipeline_standard(
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/flowedit_multimodel/src/flowedit_adapters.py", line 1105, in _load_sd3_pipeline_standard
+    snapshot_dir = _resolve_repo_snapshot(repo_id=repo_id, cache_dir=cache_dir, hf_token=hf_token)
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/flowedit_multimodel/src/flowedit_adapters.py", line 946, in _resolve_repo_snapshot
+    model_index = hf_hub_download(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/file_download.py", line 1007, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/file_download.py", line 1114, in _hf_hub_download_to_cache_dir
+    _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/file_download.py", line 1646, in _raise_on_head_call_error
+    raise LocalEntryNotFoundError(
+huggingface_hub.errors.LocalEntryNotFoundError: Cannot find the requested files in the disk cache and outgoing traffic has been disabled. To enable hf.co look-ups and downloads online, set 'local_files_only' to False.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1482, in <module>
+    main()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1461, in main
+    _LEGACY_WRAPPER.main()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260319_aris_ttt3r_flowedit_45/scripts/run_sd35_ttt3r_proximal_wrapper.py", line 1358, in main
+    adapter = create_adapter(
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/flowedit_multimodel/src/flowedit_adapters.py", line 1262, in create_adapter
+    pipe = _load_sd3_pipeline_manual(
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/flowedit_multimodel/src/flowedit_adapters.py", line 1046, in _load_sd3_pipeline_manual
+    snapshot_dir = _resolve_repo_snapshot(repo_id=repo_id, cache_dir=cache_dir, hf_token=hf_token)
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/flowedit_multimodel/src/flowedit_adapters.py", line 946, in _resolve_repo_snapshot
+    model_index = hf_hub_download(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/file_download.py", line 1007, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/file_download.py", line 1114, in _hf_hub_download_to_cache_dir
+    _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/file_download.py", line 1646, in _raise_on_head_call_error
+    raise LocalEntryNotFoundError(
+huggingface_hub.errors.LocalEntryNotFoundError: Cannot find the requested files in the disk cache and outgoing traffic has been disabled. To enable hf.co look-ups and downloads online, set 'local_files_only' to False.

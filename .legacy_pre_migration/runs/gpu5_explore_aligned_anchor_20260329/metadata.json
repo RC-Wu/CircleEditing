@@ -1,0 +1,48 @@
+{
+  "src_face_xywh": [
+    138,
+    86,
+    169,
+    169
+  ],
+  "dna_face_xywh": [
+    159,
+    79,
+    168,
+    168
+  ],
+  "mask_bbox_xyxy": [
+    167,
+    79,
+    315,
+    286
+  ],
+  "dna_crop_box_xyxy": [
+    134,
+    49,
+    352,
+    294
+  ],
+  "target_box_xyxy": [
+    146,
+    79,
+    336,
+    283
+  ],
+  "asset": "/dev_vepfs/rc_wu/edit/CircleEditing/runs/gpu5_explore_aligned_anchor_20260329/aligned_dna_face_asset.png",
+  "preview": "/dev_vepfs/rc_wu/edit/CircleEditing/runs/gpu5_explore_aligned_anchor_20260329/aligned_dna_face_preview.png",
+  "hybrid_replace": "/dev_vepfs/rc_wu/edit/CircleEditing/runs/gpu5_explore_aligned_anchor_20260329/aligned_dna_face_hybrid_replace.png",
+  "hybrid_alpha": "/dev_vepfs/rc_wu/edit/CircleEditing/runs/gpu5_explore_aligned_anchor_20260329/aligned_dna_face_hybrid_alpha.png",
+  "hybrid_target_box_xyxy": [
+    135,
+    83,
+    310,
+    275
+  ],
+  "hybrid_ellipse_xyxy": [
+    152,
+    90,
+    289,
+    256
+  ]
+}

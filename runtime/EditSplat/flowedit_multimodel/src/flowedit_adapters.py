@@ -922,6 +922,27 @@ def _ensure_auraflow_fp16_compat(
 
 
 def _resolve_repo_snapshot(repo_id: str, cache_dir: str, hf_token: Optional[str]) -> Path:
+    repo_path = Path(repo_id).expanduser()
+    if repo_path.is_file():
+        repo_path = repo_path.parent
+    if repo_path.is_dir() and (repo_path / "model_index.json").is_file():
+        return repo_path
+
+    cache_root = Path(cache_dir)
+    cached_repo = cache_root / f"models--{repo_id.replace('/', '--')}"
+    ref_main = cached_repo / "refs" / "main"
+    if ref_main.is_file():
+        snapshot_id = ref_main.read_text(encoding="utf-8").strip()
+        snapshot_dir = cached_repo / "snapshots" / snapshot_id
+        if (snapshot_dir / "model_index.json").is_file():
+            return snapshot_dir
+
+    snapshots_dir = cached_repo / "snapshots"
+    if snapshots_dir.is_dir():
+        for snapshot_dir in sorted(snapshots_dir.iterdir(), reverse=True):
+            if snapshot_dir.is_dir() and (snapshot_dir / "model_index.json").is_file():
+                return snapshot_dir
+
     model_index = hf_hub_download(
         repo_id=repo_id,
         filename="model_index.json",
@@ -1299,3 +1320,4 @@ def create_adapter(
         return AuraFlowAdapter(pipe, device)
 
     raise ValueError(f"Unknown loader: {spec.loader}")
+

@@ -1,0 +1,8 @@
+Appended a new timestamped method note to [method_track.md](/dev_vepfs/rc_wu/edit/CircleEditing/reports/ralph_loop_20260328/method_track.md#L177). The new section updates the ranking after the raster-device fix, makes the repo-state constraint explicit (`FlowAlign` partly present, `RF-Edit` not wired in this tree), and ends with the requested short ranked proposal list.
+
+The top-ranked next experiments in the note are:
+1. Hybrid-anchor propagation sweep: `FlowEdit` baseline vs `DNA face on source` vs `DNA face on FlowEdit strong`.
+2. Projected-anchor-memory ablation on the best anchor: current 2D fallback vs projected memory vs projected memory plus 2D hole fill.
+3. A lightweight Test3R-style consistency scorer to rank side-view runs by common-anchor agreement before spending effort on deeper backend changes.
+
+No tests were run because this turn only updated the report document.

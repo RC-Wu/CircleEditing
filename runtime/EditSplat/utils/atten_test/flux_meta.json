@@ -1,0 +1,29 @@
+{
+  "model_id": "black-forest-labs/FLUX.1-dev",
+  "prompt": "a photo of a panda on a bench, city background",
+  "object_word": "panda",
+  "n_img": 512,
+  "n_txt": 512,
+  "grid": [
+    16,
+    32
+  ],
+  "last_n": 4,
+  "object_token_indices": [
+    5
+  ],
+  "fixed_thresholds": [
+    0.3,
+    0.5,
+    0.7
+  ],
+  "top_pcts": [
+    5.0,
+    10.0,
+    20.0
+  ],
+  "upsample_to_input": true,
+  "smooth": 1,
+  "rope_fraction": 0.75,
+  "seed": 42
+}

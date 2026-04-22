@@ -1,0 +1,15 @@
+{
+  "source_path": "/dev-vepfs/rc_wu/rc_wu/edit/EditSplat/dataset/dataset/dinosaur",
+  "source_checkpoint": "/dev-vepfs/rc_wu/rc_wu/edit/EditSplat/dataset/pretrained/dinosaur/chkpnt7000.pth",
+  "model_id": "yujiepan/FLUX.1-dev-tiny-random",
+  "src_prompt": "a photo of a dinosaur",
+  "tar_prompt": "a photo of a toy dinosaur made of marble",
+  "num_views": 2,
+  "max_anchors": 12000,
+  "opt_iters": 4,
+  "flow_steps": 8,
+  "flow_n_max": 6,
+  "views_per_iter": 1,
+  "noise_mix": 0.9,
+  "output_dir": "/dev-vepfs/rc_wu/rc_wu/edit/EditSplat/output/flowedit_3dnoise_exp/smoke_tiny"
+}

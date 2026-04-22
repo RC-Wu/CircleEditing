@@ -1,0 +1,94 @@
+CMD=/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python /dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py --model_key sd35-medium-turbo-open --hf_home /dev_vepfs/rc_wu/cache/hf_home_dev02 --adapter_resize_side 512 --adapter_gpu 0 --base_gpu 0 --head_k 6 --depth_mode constant --skip_agt --aux_models_cpu --ttt3r_repo_root /dev_vepfs/rc_wu/edit/TTT3R --ttt3r_checkpoint /dev_vepfs/rc_wu/edit/TTT3R/src/cut3r_512_dpt_4_64.pth --ttt3r_support_views 2 --ttt3r_support_stride 1 --ttt3r_conf_power 1.0 --ttt3r_conf_floor 0.0 --ttt3r_geo_scale 1.0 --ttt3r_edit_min_mass 0.0 --ttt3r_preserve_min_mass 0.0 --ttt3r_adaptive_max_scale 3.2 --ttt3r_schedule_power 1.8 --ttt3r_input_h 256 --ttt3r_input_w 320 --ttt3r_edit_mask_quantile 0.9 --ttt3r_gpu -1 --dump_intermediates --dump_max_per_stage 16 --max_optimizer_steps 1 --optimizer_lr_scale 0.6 --fit_loss_mask_mode initial_edit --fit_loss_mask_quantile 0.75 --fit_loss_mask_bg 0.05 --fit_view_topk 1 --source_path /dev_vepfs/rc_wu/edit/EditSplat/dataset/dataset/face --source_checkpoint /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/compat_pretrained_face/chkpnt7004.pth --eval --epoch 0 --iterations 30000 --debug --target_prompt the same man in the same pose and camera framing, same background and clothes, with clear clown makeup: white face paint, a red clown nose, and colorful face paint --sampling_prompt the same man with clown makeup, same framing and identity --object_prompt face --target_mask_prompt face --filtering_ratio 1.0 --flow_src_prompt a photo of a young man --flow_tar_prompt the same man in the same pose and camera framing, same background and clothes, with clear clown makeup: white face paint, a red clown nose, and colorful face paint --flow_model_key sd35-medium-turbo-open --flow_method dnaedit --flow_hf_home /dev_vepfs/rc_wu/cache/hf_home_dev02 --flow_adapter_resize_side 512 --flow_adapter_gpu 0 --flow_steps 24 --flow_n_avg 1 --flow_n_min 0 --flow_n_max 10 --enable --resize 512 --timesteps 28 --n_min 0 --n_max 24 --time_weight one --w_edit 1.0 --w_id 0.2 --src_guidance 1.5 --tar_guidance 7.5 --mask_bg 0.2 --attn_thres 0.1 --k_percent 0.0 --model_path /dev_vepfs/rc_wu/edit/CircleEditing/runs/frontonly_dnaedit_base211_20260327_164816 --text_guidance_scale 6.9 --image_guidance_scale 1.85 --source_guidance_scale 1.25 --flow_src_guidance_scale 3.6 --flow_tar_guidance_scale 7.3 --flow_seed 211 --ttt3r_mode velocity --ttt3r_prox_strength 0.06 --ttt3r_preserve_strength 0.02 --ttt3r_edit_boost 1.0 --ttt3r_preserve_boost 1.0 --flow_dna_steps 40 --flow_dna_src_guidance_scale 1.0 --flow_dna_tar_guidance_scale 3.5 --flow_dna_t_start 13 --flow_dna_mvg 0.8
+/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+usage: run_sd35_ttt3r_sam3_wrapper.py [-h] [--sh_degree SH_DEGREE]
+                                      [--source_path SOURCE_PATH]
+                                      [--model_path MODEL_PATH]
+                                      [--source_checkpoint SOURCE_CHECKPOINT]
+                                      [--images IMAGES]
+                                      [--resolution RESOLUTION]
+                                      [--white_background]
+                                      [--data_device DATA_DEVICE] [--eval]
+                                      [--render_items RENDER_ITEMS]
+                                      [--view_shuffling]
+                                      [--iterations ITERATIONS]
+                                      [--epoch EPOCH]
+                                      [--position_lr_init POSITION_LR_INIT]
+                                      [--position_lr_final POSITION_LR_FINAL]
+                                      [--position_lr_delay_mult POSITION_LR_DELAY_MULT]
+                                      [--position_lr_max_steps POSITION_LR_MAX_STEPS]
+                                      [--feature_lr FEATURE_LR]
+                                      [--opacity_lr OPACITY_LR]
+                                      [--scaling_lr SCALING_LR]
+                                      [--rotation_lr ROTATION_LR]
+                                      [--percent_dense PERCENT_DENSE]
+                                      [--lambda_dssim LAMBDA_DSSIM]
+                                      [--densification_interval DENSIFICATION_INTERVAL]
+                                      [--opacity_reset_interval OPACITY_RESET_INTERVAL]
+                                      [--densify_from_iter DENSIFY_FROM_ITER]
+                                      [--densify_until_iter DENSIFY_UNTIL_ITER]
+                                      [--densify_grad_threshold DENSIFY_GRAD_THRESHOLD]
+                                      [--ply_path PLY_PATH]
+                                      [--attn_thres ATTN_THRES]
+                                      [--k_percent K_PERCENT]
+                                      [--convert_SHs_python]
+                                      [--compute_cov3D_python] [--debug]
+                                      [--target_prompt TARGET_PROMPT]
+                                      [--sampling_prompt SAMPLING_PROMPT]
+                                      [--object_prompt OBJECT_PROMPT]
+                                      [--target_mask_prompt TARGET_MASK_PROMPT]
+                                      [--text_guidance_scale TEXT_GUIDANCE_SCALE]
+                                      [--image_guidance_scale IMAGE_GUIDANCE_SCALE]
+                                      [--MFG_scale MFG_SCALE]
+                                      [--source_guidance_scale SOURCE_GUIDANCE_SCALE]
+                                      [--filtering_ratio FILTERING_RATIO]
+                                      [--flow_src_prompt FLOW_SRC_PROMPT]
+                                      [--flow_tar_prompt FLOW_TAR_PROMPT]
+                                      [--flow_model_key FLOW_MODEL_KEY]
+                                      [--flow_model_id FLOW_MODEL_ID]
+                                      [--flow_method FLOW_METHOD]
+                                      [--flow_hf_home FLOW_HF_HOME]
+                                      [--flow_adapter_resize_side FLOW_ADAPTER_RESIZE_SIDE]
+                                      [--flow_adapter_gpu FLOW_ADAPTER_GPU]
+                                      [--flow_steps FLOW_STEPS]
+                                      [--flow_n_avg FLOW_N_AVG]
+                                      [--flow_src_guidance_scale FLOW_SRC_GUIDANCE_SCALE]
+                                      [--flow_tar_guidance_scale FLOW_TAR_GUIDANCE_SCALE]
+                                      [--flow_negative_prompt FLOW_NEGATIVE_PROMPT]
+                                      [--flow_n_min FLOW_N_MIN]
+                                      [--flow_n_max FLOW_N_MAX]
+                                      [--flow_seed FLOW_SEED]
+                                      [--flow_dna_steps FLOW_DNA_STEPS]
+                                      [--flow_dna_src_guidance_scale FLOW_DNA_SRC_GUIDANCE_SCALE]
+                                      [--flow_dna_tar_guidance_scale FLOW_DNA_TAR_GUIDANCE_SCALE]
+                                      [--flow_dna_t_start FLOW_DNA_T_START]
+                                      [--flow_dna_mvg FLOW_DNA_MVG] [--enable]
+                                      [--resize RESIZE]
+                                      [--timesteps TIMESTEPS] [--n_min N_MIN]
+                                      [--n_max N_MAX]
+                                      [--time_weight TIME_WEIGHT]
+                                      [--w_edit W_EDIT] [--w_id W_ID]
+                                      [--src_guidance SRC_GUIDANCE]
+                                      [--tar_guidance TAR_GUIDANCE]
+                                      [--mask_bg MASK_BG]
+run_sd35_ttt3r_sam3_wrapper.py: error: unrecognized arguments: same man in the same pose and camera framing, same background and clothes, with clear clown makeup: white face paint, a red clown nose, and colorful face paint same man with clown makeup, same framing and identity photo of a young man same man in the same pose and camera framing, same background and clothes, with clear clown makeup: white face paint, a red clown nose, and colorful face paint
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+[TTT3R] forcing CPU runtime (gpu_flag=-1 force_cpu_env=0).
+... loading model from /dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth
+instantiating : ARCroco3DStereo(ARCroco3DStereoConfig(freeze='encoder',state_size=768,state_pe='2d',pos_embed='RoPE100',rgb_head=True,pose_head=True,patch_embed_cls='PatchEmbedDust3R',img_size=(512,512),head_type='dpt',output_mode='pts3d+pose',depth_mode=('exp',-inf,inf),conf_mode=('exp',1,inf),pose_mode=('exp',-inf,inf),enc_embed_dim=1024,enc_depth=24,enc_num_heads=16,dec_embed_dim=768,dec_depth=12,dec_num_heads=12,landscape_only=False))
+<All keys matched successfully>
+[TTT3R] loaded checkpoint=/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth update_type=ttt3r device=cpu
+[TTT3R] patched dust3r.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched dust3r.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched croco.models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched croco.models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] patched models.blocks.Attention.forward for CPU-safe RoPE with return_attn support.
+[TTT3R] patched models.blocks.CrossAttention.forward for CPU-safe RoPE.
+[TTT3R] cast CPU runtime model to float32.

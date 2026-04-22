@@ -1,0 +1,51 @@
+CMD=/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+[WARN] Using LPIPS stub (L1 fallback). Set FLOWEDIT_REAL_LPIPS=1 to disable.
+[TTT3R] patched run_editing_flow LPIPS builder with cross-device guard.
+[TTT3R] patched legacy parse_iter_from_checkpoint regex for numeric checkpoint extraction.
+[TTT3R] patched legacy _make_edit_mask to align ref/source resolution before edit-mask construction.
+[TTT3R] patched GaussianModel.apply_grad_mask to tolerate frozen geometry/opacity fields.
+[TTT3R] patched legacy ensure_point_cloud_link for checkpoint layout compatibility.
+[TTT3R] SDPA stability mode: flash=off mem_efficient=off math=on
+[TTT3R] forcing CPU runtime (gpu_flag=-1 force_cpu_env=0).
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/utils/hub.py", line 479, in cached_files
+    hf_hub_download(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 106, in _inner_fn
+    validate_repo_id(arg_value)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 154, in validate_repo_id
+    raise HFValidationError(
+huggingface_hub.errors.HFValidationError: Repo id must be in the form 'repo_name' or 'namespace/repo_name': '/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth'. Use `repo_type` argument if needed.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1482, in <module>
+    main()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 1461, in main
+    _LEGACY_WRAPPER.main()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260319_aris_ttt3r_flowedit_45/scripts/run_sd35_ttt3r_proximal_wrapper.py", line 1306, in main
+    runtime.init_model()
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py", line 356, in _init_model
+    orig_init_model(self)
+  File "/dev_vepfs/rc_wu/edit/CircleEditing/runtime/EditSplat_overlay_20260326/sandboxes/20260319_aris_ttt3r_flowedit_45/scripts/run_sd35_ttt3r_proximal_wrapper.py", line 250, in init_model
+    self.model = ARCroco3DStereo.from_pretrained(str(ckpt)).to(self.device)
+  File "/dev_vepfs/rc_wu/edit/TTT3R/src/dust3r/model.py", line 320, in from_pretrained
+    model = super(ARCroco3DStereo, cls).from_pretrained(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/modeling_utils.py", line 277, in _wrapper
+    return func(*args, **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/modeling_utils.py", line 4734, in from_pretrained
+    resolved_config_file = cached_file(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/utils/hub.py", line 322, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/utils/hub.py", line 531, in cached_files
+    resolved_files = [
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/utils/hub.py", line 532, in <listcomp>
+    _get_cache_file_to_return(path_or_repo_id, filename, cache_dir, revision, repo_type)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/transformers/utils/hub.py", line 143, in _get_cache_file_to_return
+    resolved_file = try_to_load_from_cache(
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 106, in _inner_fn
+    validate_repo_id(arg_value)
+  File "/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/lib/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 154, in validate_repo_id
+    raise HFValidationError(
+huggingface_hub.errors.HFValidationError: Repo id must be in the form 'repo_name' or 'namespace/repo_name': '/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth'. Use `repo_type` argument if needed.

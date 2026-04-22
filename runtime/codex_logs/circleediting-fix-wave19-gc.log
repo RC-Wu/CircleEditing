@@ -1,0 +1,15 @@
+Root cause: [`gc_job(...)`](/dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/build_fixed_gpu_overnight_queue.py#L356) always loaded the hardcoded default launcher, while the live wave19 queue was emitted with `launch_carrier_probe_wave.py`. The queued job JSONs include wave19-only fields like `resolution` and `epoch`, so cleanup rebuilt `Experiment(**exp_kwargs)` against the wrong dataclass and crashed.
+
+Changed files:
+- [`build_fixed_gpu_overnight_queue.py`](/dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/build_fixed_gpu_overnight_queue.py#L70): persist the queue launcher in `queue_config.json`, pass `--launcher-module` to future `gc-job` calls, and make `gc_job(...)` resolve the launcher from explicit arg, queue config, or existing `slot_*.sh` files for backward compatibility.
+- [`test_build_fixed_gpu_overnight_queue.py`](/dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/tests/test_build_fixed_gpu_overnight_queue.py#L65): regression coverage for the exact wave19 `resolution` path and for generated `gc-job` launcher propagation.
+- [`2026-04-13-wave19-gc-launcher-contract.md`](/dev_vepfs/rc_wu/edit/CircleEditing/docs/2026-04-13-wave19-gc-launcher-contract.md#L1): short note documenting the launcher-contract rule.
+
+Tests run:
+- `python3 -m unittest runtime.EditSplat.sandboxes.20260322_editsplat_ttt3r_flowedit_sam3_4567.tests.test_build_fixed_gpu_overnight_queue`
+- Live verification: `python3 runtime/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/build_fixed_gpu_overnight_queue.py gc-job --queue-root /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/queues --wave-name 20260413_wave19_dev01_three_gpu --job-json /dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/runtime/queues/20260413_wave19_dev01_three_gpu/jobs/bandage_wrap_open_semboost_core_r384.json`
+- Result: both passed; the live `gc-job` path no longer crashes on the `resolution` field.
+
+Relaunch:
+- Not performed.
+- Reason: this session is not on the intended `dev01` host, so relaunching queue slots from here is not safe. I confirmed the queue is stalled at 3/15 completed jobs, and I left GPU2 untouched per your constraint.

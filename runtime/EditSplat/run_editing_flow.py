@@ -1,6 +1,7 @@
-import sys
+﻿import sys
 import os
 import random
+import contextlib
 from argparse import ArgumentParser
 import json
 import shutil
@@ -16,7 +17,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Subset, Dataset
 from torchvision.transforms import ToPILImage
-from diffusers import StableDiffusionPipeline, DDIMScheduler
+from diffusers import DiffusionPipeline, StableDiffusionPipeline, DDIMScheduler
 from diffusers import FluxPipeline, DDIMScheduler
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import retrieve_timesteps
@@ -34,21 +35,14 @@ except Exception:
 if "EDITSPLAT_HF_HOME" in os.environ:
     os.environ["HF_HOME"] = os.environ["EDITSPLAT_HF_HOME"]
 else:
-    os.environ.setdefault("HF_HOME", "/dev_vepfs/rc_wu/cache/hf_home")
+    os.environ.setdefault("HF_HOME", "/dev_vepfs/rc_wu/cache/hf_home_dev02")
 
 if "EDITSPLAT_TORCH_HOME" in os.environ:
     os.environ["TORCH_HOME"] = os.environ["EDITSPLAT_TORCH_HOME"]
 else:
     os.environ.setdefault("TORCH_HOME", "/dev_vepfs/rc_wu/cache/torch")
 
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
-
-try:
-    from lang_sam import LangSAM
-except Exception:
-    LangSAM = None
 
 from scene import Scene, GaussianModel
 from gaussian_renderer import render
@@ -61,6 +55,18 @@ from utils.loss_utils import l1_loss
 from utils.rgbd_warping import reproject_rgbd, reprojected2img
 from utils.camera_proximity_utils import find_nearby_camera
 from utils.flow_utils import scale_noise, calculate_shift, calc_v_flux
+from utils.semantic_guidance import (
+    accumulate_projected_gaussian_mask,
+    build_semantic_guidance,
+    expand_loss_guidance_mask,
+    normalize_gaussian_support_mask,
+    summarize_gaussian_mask,
+    summarize_mask,
+    summarize_mask_distribution,
+    summarize_mask_overlap,
+)
+from utils.runtime_bootstrap import should_bootstrap_external_backend_only
+from utils.sam3_support import iter_mask_prompts, parse_hf_token_line, resolve_sam3_backend_request
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -116,9 +122,9 @@ def _load_reward_model():
         return _DummyRewardModel()
 
 
-def _load_langsam():
-    class _LangSAMStub:
-        backend_name = "stub"
+def _load_mask_backend():
+    class _Sam3FullMaskStub:
+        backend_name = "sam3_stub"
 
         def predict(self, image_pil, text_prompt):
             del text_prompt
@@ -126,101 +132,125 @@ def _load_langsam():
             mask = torch.ones((1, h, w), dtype=torch.float32)
             return mask, None, None, None
 
-    backend = os.environ.get("EDITSPLAT_MASK_BACKEND", "langsam").strip().lower()
-    if backend in {"stub", "full", "full-image", "full_image"}:
-        print(f"[WARN] EDITSPLAT_MASK_BACKEND={backend}: using full-image mask stub.")
-        return _LangSAMStub()
+    def _patch_sam3_decoder_cache_device() -> None:
+        try:
+            from sam3.model.decoder import TransformerDecoder
+        except Exception:
+            return
+        if getattr(TransformerDecoder, "_editsplat_cache_device_patch", False):
+            return
 
-    if backend not in {"langsam", "auto", ""}:
-        print(f"[WARN] Unknown EDITSPLAT_MASK_BACKEND={backend}; falling back to LangSAM.")
+        orig_get_rpb_matrix = TransformerDecoder._get_rpb_matrix
 
-    if LangSAM is None:
-        print("[WARN] LangSAM unavailable, using full-image mask stub.")
-        return _LangSAMStub()
+        def _move_cache_pair(pair, device):
+            if pair is None:
+                return None
+            coords_h, coords_w = pair
+            if coords_h.device != device or coords_w.device != device:
+                coords_h = coords_h.to(device)
+                coords_w = coords_w.to(device)
+            return coords_h, coords_w
 
-    hf_home = os.environ.get("EDITSPLAT_HF_HOME") or os.environ.get("HF_HOME") or "/dev_vepfs/rc_wu/cache/hf_home"
-    torch_home = os.environ.get("EDITSPLAT_TORCH_HOME") or os.environ.get("TORCH_HOME") or "/dev_vepfs/rc_wu/cache/torch"
-    sam_ckpt = os.environ.get("EDITSPLAT_LANGSAM_SAM_CKPT") or os.path.join(torch_home, "hub", "checkpoints", "sam_vit_h_4b8939.pth")
-    langsam_device = os.environ.get("EDITSPLAT_LANGSAM_DEVICE", "cpu").strip().lower() or "cpu"
-    if langsam_device not in {"auto", "cpu", "cuda"}:
-        print(f"[WARN] Unknown EDITSPLAT_LANGSAM_DEVICE={langsam_device}; falling back to cpu.")
-        langsam_device = "cpu"
+        def _patched_get_rpb_matrix(self, reference_boxes, feat_size):
+            device = reference_boxes.device
+            if getattr(self, "compilable_cord_cache", None) is not None:
+                moved = _move_cache_pair(self.compilable_cord_cache, device)
+                if moved is not None:
+                    self.compilable_cord_cache = moved
+            coord_cache = getattr(self, "coord_cache", None)
+            if isinstance(coord_cache, dict) and feat_size in coord_cache:
+                moved = _move_cache_pair(coord_cache.get(feat_size), device)
+                if moved is not None:
+                    coord_cache[feat_size] = moved
+            return orig_get_rpb_matrix(self, reference_boxes, feat_size)
 
-    os.environ["HF_HOME"] = hf_home
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-    os.environ["TORCH_HOME"] = torch_home
+        TransformerDecoder._get_rpb_matrix = _patched_get_rpb_matrix
+        TransformerDecoder._editsplat_cache_device_patch = True
 
-    repo_root = Path(hf_home) / "hub" / "models--ShilongLiu--GroundingDINO"
-    snapshot_id = os.environ.get("EDITSPLAT_LANGSAM_DINO_SNAPSHOT_ID", "").strip()
-    if not snapshot_id:
-        ref_main = repo_root / "refs" / "main"
-        if ref_main.is_file():
-            snapshot_id = ref_main.read_text(encoding="utf-8").strip()
-    default_snapshot = repo_root / "snapshots" / snapshot_id if snapshot_id else repo_root / "snapshots"
-    dino_snapshot = Path(os.environ.get("EDITSPLAT_LANGSAM_DINO_SNAPSHOT", str(default_snapshot)))
-    dino_cfg = dino_snapshot / "GroundingDINO_SwinB.cfg.py"
-    dino_ckpt = dino_snapshot / "groundingdino_swinb_cogcoor.pth"
+    class _Sam3MaskAdapter:
+        backend_name = "sam3"
 
-    try:
-        from lang_sam import lang_sam as lang_sam_module
+        def __init__(self):
+            from sam3.model.sam3_image_processor import Sam3Processor
+            from sam3.model_builder import build_sam3_image_model
 
-        original_load_model_hf = getattr(lang_sam_module, "load_model_hf", None)
+            hf_home = Path(os.environ.get("EDITSPLAT_HF_HOME") or os.environ.get("HF_HOME") or "/dev_vepfs/rc_wu/cache/hf_home_dev02")
+            token_file = Path(os.environ.get("EDITSPLAT_HF_TOKEN_FILE", "/dev_vepfs/rc_wu/.huggingface/token"))
+            checkpoint_path = os.environ.get("EDITSPLAT_SAM3_CHECKPOINT_PATH", "").strip() or None
+            device_name = os.environ.get("EDITSPLAT_SAM3_DEVICE", "cpu").strip().lower() or "cpu"
+            if device_name not in {"cpu", "cuda"}:
+                device_name = "cpu"
 
-        def _load_model_hf_local(repo_id, filename, ckpt_config_filename, device='cpu'):
-            cfg_path = dino_snapshot / ckpt_config_filename
-            ckpt_path = dino_snapshot / filename
-            if cfg_path.is_file() and ckpt_path.is_file():
-                args = lang_sam_module.SLConfig.fromfile(str(cfg_path))
-                model = lang_sam_module.build_model(args)
-                args.device = device
-                checkpoint = torch.load(str(ckpt_path), map_location='cpu')
-                log = model.load_state_dict(lang_sam_module.clean_state_dict(checkpoint['model']), strict=False)
-                print(
-                    f"[INFO] LangSAM local GroundingDINO load: repo_id={repo_id} cfg={cfg_path} ckpt={ckpt_path} => {log}"
-                )
-                model.eval()
-                return model
-            if callable(original_load_model_hf):
-                return original_load_model_hf(repo_id, filename, ckpt_config_filename, device=device)
-            raise FileNotFoundError(
-                f"GroundingDINO local snapshot incomplete: cfg={cfg_path} ckpt={ckpt_path}"
-            )
+            os.environ["HF_HOME"] = str(hf_home)
+            os.environ["HF_HUB_CACHE"] = str(hf_home / "hub")
+            if token_file.is_file():
+                token = parse_hf_token_line(token_file.read_text(encoding="utf-8").strip().splitlines()[0])
+                if token:
+                    os.environ["HF_TOKEN"] = token
+                    os.environ["HUGGINGFACE_HUB_TOKEN"] = token
 
-        lang_sam_module.load_model_hf = _load_model_hf_local
-
-        original_cuda_is_available = torch.cuda.is_available
-        if os.path.isfile(sam_ckpt):
+            _patch_sam3_decoder_cache_device()
             print(
-                f"[INFO] LangSAM local init: HF_HOME={hf_home} TORCH_HOME={torch_home} "
-                f"DINO_SNAPSHOT={dino_snapshot} SAM_CKPT={sam_ckpt} DEVICE={langsam_device}"
+                f"[INFO] SAM3 init: HF_HOME={hf_home} token_file={token_file} "
+                f"checkpoint_path={checkpoint_path or 'hf://facebook/sam3'} device={device_name}"
             )
-            try:
-                if langsam_device == "cpu":
-                    torch.cuda.is_available = lambda: False
-                model = LangSAM(ckpt_path=sam_ckpt)
-            finally:
-                torch.cuda.is_available = original_cuda_is_available
-        else:
-            print(f"[WARN] LangSAM SAM checkpoint missing at {sam_ckpt}; trying default LangSAM() path.")
-            try:
-                if langsam_device == "cpu":
-                    torch.cuda.is_available = lambda: False
-                model = LangSAM()
-            finally:
-                torch.cuda.is_available = original_cuda_is_available
-        if model is None or not hasattr(model, "predict"):
-            raise RuntimeError("LangSAM() returned an invalid object")
-        resolved_device = str(getattr(model, "device", langsam_device))
-        setattr(model, "backend_name", f"langsam:{resolved_device}")
-        return model
-    except Exception as exc:
-        print(
-            "[WARN] LangSAM init failed, using full-image mask stub. "
-            f"backend={backend} hf_home={hf_home} torch_home={torch_home} "
-            f"dino_snapshot={dino_snapshot} sam_ckpt={sam_ckpt} exc={exc}"
-        )
-        return _LangSAMStub()
+            self._model = build_sam3_image_model(
+                device=device_name,
+                checkpoint_path=checkpoint_path,
+                load_from_HF=checkpoint_path is None,
+            )
+            self._processor = Sam3Processor(self._model, device=device_name)
+            self._base_confidence_threshold = float(os.environ.get("EDITSPLAT_SAM3_CONFIDENCE", "0.18"))
+            self._processor.set_confidence_threshold(self._base_confidence_threshold)
+            self._fallbacks = []
+            for raw in os.environ.get("EDITSPLAT_SAM3_CONFIDENCE_FALLBACKS", "0.12,0.08,0.04,0.0").split(","):
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    self._fallbacks.append(float(raw))
+                except ValueError:
+                    continue
+            self._last_used_threshold = self._base_confidence_threshold
+
+        def predict(self, image_pil, text_prompt):
+            image_size = (image_pil.size[1], image_pil.size[0])
+            last_exc = None
+            for prompt in iter_mask_prompts(text_prompt):
+                for threshold in [self._base_confidence_threshold, *self._fallbacks]:
+                    try:
+                        self._processor.set_confidence_threshold(float(threshold))
+                        state = self._processor.set_image(image_pil)
+                        state = self._processor.set_text_prompt(prompt, state)
+                        masks = state.get("masks")
+                        if masks is None:
+                            continue
+                        mask_t = torch.as_tensor(masks).detach().float().cpu()
+                        if mask_t.numel() == 0:
+                            continue
+                        if mask_t.ndim >= 4:
+                            mask_t = mask_t[0]
+                        if mask_t.ndim == 2:
+                            mask_t = mask_t.unsqueeze(0)
+                        elif mask_t.ndim == 3 and mask_t.shape[0] != 1:
+                            mask_t = mask_t.amax(dim=0, keepdim=True)
+                        if tuple(mask_t.shape[-2:]) != image_size:
+                            mask_t = F.interpolate(mask_t.unsqueeze(0), size=image_size, mode="nearest").squeeze(0)
+                        mask_t = (mask_t > 0).float()
+                        if float(mask_t.max().item()) <= 0.0:
+                            continue
+                        self._last_used_threshold = float(threshold)
+                        return mask_t, state.get("boxes"), state.get("scores"), None
+                    except Exception as exc:
+                        last_exc = exc
+                        continue
+            raise RuntimeError(f"SAM3 predict failed for prompt={text_prompt}: {last_exc}")
+
+    backend = resolve_sam3_backend_request(os.environ.get("EDITSPLAT_MASK_BACKEND", "sam3"))
+    if backend == "stub":
+        print("[WARN] EDITSPLAT_MASK_BACKEND=stub/full-image: using full-image mask stub.")
+        return _Sam3FullMaskStub()
+    return _Sam3MaskAdapter()
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -251,7 +281,7 @@ def _full_image_mask(image_height: int, image_width: int) -> torch.Tensor:
     return torch.ones((1, image_height, image_width), dtype=torch.float32)
 
 
-def _normalize_langsam_mask(
+def _normalize_mask_backend_mask(
     mask: Optional[torch.Tensor],
     image_height: int,
     image_width: int,
@@ -282,32 +312,26 @@ def _normalize_langsam_mask(
 
     if tuple(mask.shape[-2:]) != (image_height, image_width):
         mask = F.interpolate(mask.unsqueeze(0), size=(image_height, image_width), mode="nearest").squeeze(0)
-    mask = mask.float().clamp(0.0, 1.0)
-    if _env_flag("EDITSPLAT_BINARIZE_SUPPORT_MASK", True):
-        threshold = float(os.environ.get("EDITSPLAT_SUPPORT_MASK_THRESHOLD", "0.0"))
-        return (mask > threshold).float()
-    return mask
+    return (mask > 0).float()
 
 
-def _predict_langsam_mask(
-    lang_sam,
+def _predict_mask_backend_mask(
+    mask_backend,
     image_pil: Image.Image,
     text_prompt: str,
     image_height: int,
     image_width: int,
-    mask_role: Optional[str] = None,
 ) -> torch.Tensor:
-    del mask_role
     if text_prompt == "no_mask":
         return _full_image_mask(image_height, image_width)
     try:
-        mask, _, _, _ = lang_sam.predict(image_pil, text_prompt)
-        mask = _normalize_langsam_mask(mask, image_height=image_height, image_width=image_width)
+        mask, _, _, _ = mask_backend.predict(image_pil, text_prompt)
+        mask = _normalize_mask_backend_mask(mask, image_height=image_height, image_width=image_width)
         if mask is None or mask.numel() == 0 or float(mask.max().item()) <= 0.0:
-            raise RuntimeError("LangSAM returned an empty mask")
+            raise RuntimeError("Mask backend returned an empty mask")
         return mask
     except Exception as exc:
-        print(f"[WARN] LangSAM predict failed, using full-image mask stub. prompt={text_prompt} exc={exc}")
+        print(f"[WARN] Mask backend predict failed, using full-image mask stub. prompt={text_prompt} exc={exc}")
         return _full_image_mask(image_height, image_width)
 
 
@@ -330,24 +354,6 @@ def _save_debug_tensor(x: torch.Tensor, out_path: Path) -> None:
         return
     arr = (x01[0].permute(1, 2, 0).numpy() * 255.0).round().astype(np.uint8)
     Image.fromarray(arr).save(out_path)
-
-
-def _initial_edit_diff_score(edited_image: torch.Tensor, gt_image: torch.Tensor) -> float:
-    edited = _to_01_bchw(edited_image)
-    gt = _to_01_bchw(gt_image)
-    if tuple(edited.shape[-2:]) != tuple(gt.shape[-2:]):
-        gt = F.interpolate(gt, size=edited.shape[-2:], mode="bilinear", align_corners=False)
-    return float((edited - gt).abs().mean().item())
-
-
-def _pick_frontier_anchor(initial_edit_scores: List[float], candidate_indices: List[int]) -> int:
-    if not candidate_indices:
-        candidate_indices = list(range(len(initial_edit_scores)))
-    center = 0.5 * max(0, len(initial_edit_scores) - 1)
-    return max(
-        candidate_indices,
-        key=lambda idx: (float(initial_edit_scores[idx]), -abs(float(idx) - center)),
-    )
 
 
 def _prepare_debug_root(model_path: str) -> Optional[Path]:
@@ -395,6 +401,16 @@ def _dump_stage_payload(
     if meta:
         stats["meta"] = meta
     (stage_dir / "stats.json").write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _write_gaussian_mask_stats(model_path: str, stats: Dict[str, object]) -> Optional[Path]:
+    if not _env_flag("EDITSPLAT_DUMP_GAUSSIAN_MASK_STATS", True):
+        return None
+    out_dir = Path(model_path) / "debug_intermediates" / "semantic_guidance"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "gaussian_mask_stats.json"
+    out_path.write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
+    return out_path
 
 
 def _normalize_reward_ranks(ranking, num_items: int) -> List[int]:
@@ -450,19 +466,6 @@ def _resolve_reward_selection(ranking, rewards, filtering_ratio: float, num_item
         "selected": selected,
     }
     return selected, meta
-    try:
-        return LangSAM()
-    except Exception as exc:
-        print(f"[WARN] LangSAM init failed, using full-image mask stub. exc={exc}")
-
-        class _LangSAMStub:
-            def predict(self, image_pil, text_prompt):
-                del text_prompt
-                w, h = image_pil.size
-                mask = torch.ones((1, h, w), dtype=torch.float32)
-                return mask, None, None, None
-
-        return _LangSAMStub()
 
 class HeadCameraDataset(Dataset):
     def __init__(self, base_dataset, k: int):
@@ -542,11 +545,28 @@ def calculate_shift(
     return mu
 
 class Editsplat_Pipeline(FluxPipeline):
+    @classmethod
+    def build_external_backend_only(cls):
+        pipe = object.__new__(cls)
+        DiffusionPipeline.__init__(pipe)
+        pipe._external_backend_only = True
+        pipe._external_edit_backend = None
+        pipe.transformer = None
+        return pipe
+
+    def to(self, *args, **kwargs):
+        if getattr(self, "_external_backend_only", False):
+            return self
+        return super().to(*args, **kwargs)
+
     def configure_edit_backend(self, ed) -> None:
         method = str(getattr(ed, "flow_method", "flowedit")).strip().lower()
         model_key = str(getattr(ed, "flow_model_key", "flux1-dev")).strip()
 
-        self._external_edit_backend = None
+        if getattr(self, "_external_backend_only", False):
+            object.__setattr__(self, "_external_edit_backend", None)
+        else:
+            self._external_edit_backend = None
         if method in ("native", "native_flowedit"):
             print("[INFO] Using native FLUX FlowEdit path.")
             return
@@ -575,7 +595,11 @@ class Editsplat_Pipeline(FluxPipeline):
             dna_t_start=int(getattr(ed, "flow_dna_t_start", 13)),
             dna_mvg=float(getattr(ed, "flow_dna_mvg", 0.8)),
         )
-        self._external_edit_backend = FlowEditCoreBackend(config=cfg, project_root=str(Path(__file__).resolve().parent))
+        backend = FlowEditCoreBackend(config=cfg, project_root=str(Path(__file__).resolve().parent))
+        if getattr(self, "_external_backend_only", False):
+            object.__setattr__(self, "_external_edit_backend", backend)
+        else:
+            self._external_edit_backend = backend
         print(
             f"[INFO] External edit backend enabled: method={method}, model_key={model_key}, "
             f"adapter_device={self._external_edit_backend.device}"
@@ -1242,7 +1266,7 @@ class Editsplat_Pipeline(FluxPipeline):
         src_prompt: str,
         tar_prompt: str,
         sdp,
-        mask_b1hw: Optional[torch.Tensor] = None,  # LangSAM mask，可为 [H,W]/[1,H,W]/[1,1,H,W]
+        mask_b1hw: Optional[torch.Tensor] = None,  # segmentation mask，可为 [H,W]/[1,H,W]/[1,1,H,W]
     ):
         device = rendered_bchw.device
         # 组态 & 缓存
@@ -1307,7 +1331,7 @@ class Editsplat_Pipeline(FluxPipeline):
             wt = 1.0
         wt = torch.tensor(wt, device=device, dtype=xt_tar.dtype)
 
-        # ---- LangSAM 掩码：仅在损失里做 gating（不改变前向）----
+        # ---- segmentation 掩码：仅在损失里做 gating（不改变前向）----
         m_tok = None
         if mask_b1hw is not None:
             m = mask_b1hw
@@ -1378,14 +1402,17 @@ class Editsplat_Pipeline(FluxPipeline):
         # trg_prompt_embeds = self._encode_prompt(
         #     ed.target_prompt, device=self._execution_device, num_images_per_prompt=1, do_classifier_free_guidance=True, negative_prompt=""
         # )
-        self.transformer = self.transformer.to(torch.bfloat16)
-        self.transformer.eval()
-        self.transformer.requires_grad_(False)
+        if getattr(self, "transformer", None) is not None:
+            self.transformer = self.transformer.to(torch.bfloat16)
+            self.transformer.eval()
+            self.transformer.requires_grad_(False)
+        else:
+            print("[INFO] External-backend-only bootstrap: skip Flux transformer preparation.")
         # load ImageReward
         reward_model = _load_reward_model()
 
-        # load Lang-SAM
-        lang_sam = _load_langsam()
+        # load SAM3-backed mask backend
+        mask_backend = _load_mask_backend()
 
         # load 3D Gaussian Splatting
         gaussians = GaussianModel(dataset.sh_degree)
@@ -1394,6 +1421,7 @@ class Editsplat_Pipeline(FluxPipeline):
 
         gaussians.training_setup(opt)
 
+        start_iteration = 0
         if dataset.source_checkpoint:
             # Avoid cross-GPU restore/OOM from serialized CUDA device ids in checkpoint.
             (model_params, first_iter) = torch.load(dataset.source_checkpoint, map_location="cpu")
@@ -1428,9 +1456,6 @@ class Editsplat_Pipeline(FluxPipeline):
         bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device=render_device)
 
-        # for multi-view attention weighting
-        attn_list = []
-
         # utility setting
         topilimage = ToPILImage()
 
@@ -1460,6 +1485,7 @@ class Editsplat_Pipeline(FluxPipeline):
         # Get Camera distance matrix
         camera_list = train_dataset.camera_list
         camera_dist_order, _ = find_nearby_camera(camera_list)
+        attn_masks_by_view = {}
 
         image_height = camera_list[0].image_height
         image_width = camera_list[0].image_width
@@ -1471,7 +1497,6 @@ class Editsplat_Pipeline(FluxPipeline):
             edited_image_pil_list_RM = []
             rendered_depth_list = []
             is_top_selection = []
-            initial_edit_scores = []
 
             for step, batch in enumerate(tqdm(train_dataloader, desc="Initial editing progress")):
                 
@@ -1502,7 +1527,6 @@ class Editsplat_Pipeline(FluxPipeline):
                 edited_image = F.interpolate(edited_image, size=(image_height, image_width), mode='bilinear', align_corners=True).to(torch.float32)
 
                 edited_image_list.append(edited_image.squeeze(0).detach().cpu().clone())
-                initial_edit_scores.append(_initial_edit_diff_score(edited_image, gt_image))
 
                 # save pil image for imagereward sampling
                 edited_pil = topilimage(edited_image.squeeze(0))
@@ -1563,34 +1587,7 @@ class Editsplat_Pipeline(FluxPipeline):
                     json.dumps(selection_meta, indent=2, ensure_ascii=False),
                     encoding="utf-8",
                 )
-
-        frontier_anchor_idx = None
-        frontier_neighbor_set = set()
-        if mfg_mode == "frontier_seed1":
-            frontier_candidates = [idx for idx, flag in enumerate(is_top_selection) if flag]
-            frontier_anchor_idx = _pick_frontier_anchor(initial_edit_scores, frontier_candidates)
-            frontier_neighbor_set = {
-                int(x)
-                for x in camera_dist_order[frontier_anchor_idx][1 : 1 + max(1, mfg_source_count)]
-            }
-            frontier_meta = {
-                "anchor_idx": int(frontier_anchor_idx),
-                "anchor_score": float(initial_edit_scores[frontier_anchor_idx]),
-                "neighbor_indices": sorted(int(x) for x in frontier_neighbor_set),
-                "candidate_indices": [int(x) for x in frontier_candidates],
-            }
-            print(
-                "[FRONTIER] "
-                f"anchor={frontier_meta['anchor_idx']} "
-                f"score={frontier_meta['anchor_score']:.6f} "
-                f"neighbors={frontier_meta['neighbor_indices']}"
-            )
-            if debug_root is not None:
-                (debug_root / "selection" / "frontier_seed1.json").write_text(
-                    json.dumps(frontier_meta, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-
+            
 
         """Multi-View Fusion Guidance (MFG)"""
         edited_image_MFG_list = []
@@ -1602,46 +1599,10 @@ class Editsplat_Pipeline(FluxPipeline):
 
             gt_image = F.interpolate(gt_image, size=(image_height, image_width), mode='bilinear', align_corners=True) 
 
-            if mfg_mode == "frontier_seed1" and frontier_anchor_idx is not None:
-                is_anchor_view = idx == frontier_anchor_idx
-                is_frontier_neighbor = idx in frontier_neighbor_set
-                if is_anchor_view or not is_frontier_neighbor:
-                    gt_image_np = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
-                    gt_image_pil = Image.fromarray((gt_image_np * 255).astype(np.uint8))
-                    gt_mask = _predict_langsam_mask(
-                        lang_sam=lang_sam,
-                        image_pil=gt_image_pil,
-                        text_prompt=ed.target_mask_prompt,
-                        image_height=image_height,
-                        image_width=image_width,
-                        mask_role="gt_view",
-                    )
-                    edited_image_MFG = edited_image_list[idx].unsqueeze(0).to(torch.float32)
-                    attn_list.append(gt_mask.to(render_device))
-                    edited_image_MFG_list.append(edited_image_MFG.squeeze(0).detach().cpu().clone())
-                    _dump_stage_payload(
-                        debug_root=debug_root,
-                        stage="mfg_edit",
-                        view_idx=idx,
-                        payload={
-                            "gt": gt_image,
-                            "initial_edit": edited_image_MFG,
-                            "gt_mask": gt_mask,
-                            "mfg_output": edited_image_MFG,
-                        },
-                        meta={
-                            "mfg_mode": mfg_mode,
-                            "frontier_role": "anchor" if is_anchor_view else "context_passthrough",
-                            "frontier_anchor_idx": int(frontier_anchor_idx),
-                            "source_indices": [int(idx)],
-                        },
-                    )
-                    continue
-
             if mfg_mode == "initial_only":
                 full_mask = torch.ones((1, image_height, image_width), dtype=torch.float32, device=render_device)
                 edited_image_MFG = edited_image_list[idx].unsqueeze(0).to(torch.float32)
-                attn_list.append(full_mask)
+                attn_masks_by_view[idx] = full_mask
                 edited_image_MFG_list.append(edited_image_MFG.squeeze(0).detach().cpu().clone())
                 _dump_stage_payload(
                     debug_root=debug_root,
@@ -1665,23 +1626,20 @@ class Editsplat_Pipeline(FluxPipeline):
                 src_cam_idx_list = []
                 dst_cam_idx = idx
 
-                if mfg_mode == "frontier_seed1" and frontier_anchor_idx is not None and idx in frontier_neighbor_set:
-                    src_cam_idx_list = [int(frontier_anchor_idx)]
-                else:
-                    # Prefer top-ranked source views; then backfill from nearest views.
-                    # This avoids dead loops when very few views are marked as top.
+                # Prefer top-ranked source views; then backfill from nearest views.
+                # This avoids dead loops when very few views are marked as top.
+                for camera_idx in camera_dist_order[idx][1:]:
+                    if is_top_selection[camera_idx]:
+                        src_cam_idx_list.append(camera_idx)
+                    if len(src_cam_idx_list) >= mfg_source_count:
+                        break
+
+                if len(src_cam_idx_list) < mfg_source_count and mfg_backfill != "selected_only":
                     for camera_idx in camera_dist_order[idx][1:]:
-                        if is_top_selection[camera_idx]:
+                        if camera_idx not in src_cam_idx_list:
                             src_cam_idx_list.append(camera_idx)
                         if len(src_cam_idx_list) >= mfg_source_count:
                             break
-
-                    if len(src_cam_idx_list) < mfg_source_count and mfg_backfill != "selected_only":
-                        for camera_idx in camera_dist_order[idx][1:]:
-                            if camera_idx not in src_cam_idx_list:
-                                src_cam_idx_list.append(camera_idx)
-                            if len(src_cam_idx_list) >= mfg_source_count:
-                                break
 
                 if len(src_cam_idx_list) == 0:
                     src_cam_idx_list = [dst_cam_idx]
@@ -1719,30 +1677,15 @@ class Editsplat_Pipeline(FluxPipeline):
                 
                 dst_image_np = dst_image.detach().cpu().numpy().transpose(1, 2, 0).clip(0, 1)
                 dst_image_pil = Image.fromarray((dst_image_np * 255).astype(np.uint8))
-                gt_image_np = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
-                gt_image_pil = Image.fromarray((gt_image_np * 255).astype(np.uint8))
                 
                 reprejected_image = dst_image.unsqueeze(0)
-                frontier_target_mask = None
-                if mfg_mode == "frontier_seed1" and frontier_anchor_idx is not None and idx in frontier_neighbor_set:
-                    frontier_target_mask = _predict_langsam_mask(
-                        lang_sam=lang_sam,
-                        image_pil=gt_image_pil,
-                        text_prompt=ed.target_mask_prompt,
-                        image_height=image_height,
-                        image_width=image_width,
-                        mask_role="gt_view",
-                    )
-                    mask = frontier_target_mask
-                else:
-                    mask = _predict_langsam_mask(
-                        lang_sam=lang_sam,
-                        image_pil=dst_image_pil,
-                        text_prompt=ed.target_mask_prompt,
-                        image_height=image_height,
-                        image_width=image_width,
-                        mask_role="reproject",
-                    )
+                mask = _predict_mask_backend_mask(
+                    mask_backend=mask_backend,
+                    image_pil=dst_image_pil,
+                    text_prompt=ed.target_mask_prompt,
+                    image_height=image_height,
+                    image_width=image_width,
+                )
 
                 # background replacement
                 MF_image = reprejected_image * mask.to(reprejected_image.device)
@@ -1795,23 +1738,19 @@ class Editsplat_Pipeline(FluxPipeline):
             #     image_height=image_height, image_width=image_width
             # )
             
-            # TODO !! LangSAM替代 
+            # Save a per-view SAM3 mask for Gaussian guidance and loss masking.
             # gt_img (1,3,h,w) -> (3,h,w)
             alter_np_gt_img = gt_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0).clip(0, 1)
             alter_np_gt_img_pil = Image.fromarray((alter_np_gt_img * 255).astype(np.uint8))
             
             # reprejected_image = dst_image.unsqueeze(0)
-            if mfg_mode == "frontier_seed1" and frontier_target_mask is not None:
-                alter_gt_mask = frontier_target_mask
-            else:
-                alter_gt_mask = _predict_langsam_mask(
-                    lang_sam=lang_sam,
-                    image_pil=alter_np_gt_img_pil,
-                    text_prompt=ed.target_mask_prompt,
-                    image_height=image_height,
-                    image_width=image_width,
-                    mask_role="gt_view",
-                )
+            alter_gt_mask = _predict_mask_backend_mask(
+                mask_backend=mask_backend,
+                image_pil=alter_np_gt_img_pil,
+                text_prompt=ed.target_mask_prompt,
+                image_height=image_height,
+                image_width=image_width,
+            )
 
             # trg_object_average_attention_map_512 = torch.tensor(trg_object_average_attention_map_512)
 
@@ -1820,7 +1759,7 @@ class Editsplat_Pipeline(FluxPipeline):
             # max_val = trg_object_average_attention_map_512.max()
             # trg_object_average_attention_map_512 = (trg_object_average_attention_map_512 - min_val) / (max_val - min_val)
 
-            attn_list.append(alter_gt_mask.to(render_device))
+            attn_masks_by_view[idx] = alter_gt_mask.to(render_device)
             
             # save gaussian target image
             edited_image_MFG_list.append(edited_image_MFG.squeeze(0).detach().cpu().clone())
@@ -1832,13 +1771,13 @@ class Editsplat_Pipeline(FluxPipeline):
                     "gt": gt_image,
                     "reprojected": reprejected_image,
                     "mask": mask,
+                    "sam3_mask": alter_gt_mask,
                     "mf_cond": MF_image,
                     "mfg_output": edited_image_MFG,
                 },
                 meta={
                     "mfg_mode": mfg_mode,
                     "mfg_backfill": mfg_backfill,
-                    "frontier_anchor_idx": int(frontier_anchor_idx) if frontier_anchor_idx is not None else None,
                     "source_indices": [int(x) for x in src_cam_idx_list],
                     "selected_source_indices": [int(i) for i, flag in enumerate(is_top_selection) if flag],
                 },
@@ -1850,34 +1789,207 @@ class Editsplat_Pipeline(FluxPipeline):
 
         '''Attention-Guided Trimming (AGT)'''
         skip_agt = os.environ.get("EDITSPLAT_SKIP_AGT", "0").strip().lower() in ("1", "true", "yes")
-        if skip_agt:
-            print("[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.")
-            selected_mask = torch.ones_like(gaussians._opacity[:, 0], dtype=torch.float32)
-        else:
-            # attention Weighting
+        gaussian_mask_mode = _env_choice("EDITSPLAT_GAUSSIAN_MASK_MODE", "projection")
+        gaussian_mask_chunk = max(1, _env_int("EDITSPLAT_GAUSSIAN_MASK_CHUNK", 65536))
+        gaussian_mask_depth_tolerance = float(os.environ.get("EDITSPLAT_GAUSSIAN_MASK_DEPTH_TOLERANCE", "0.0"))
+        keep_support_when_skip_agt = _env_flag("EDITSPLAT_SKIP_AGT_KEEP_SUPPORT", True)
+        full_view_mask = torch.ones((1, image_height, image_width), dtype=torch.float32, device=render_device)
+
+        def _get_attn_mask(view_idx: int) -> torch.Tensor:
+            return attn_masks_by_view.get(view_idx, full_view_mask).to(render_device).float()
+
+        def _soften_attn_mask(mask: torch.Tensor) -> torch.Tensor:
+            temp_binary = mask > 0.5
+            return mask * temp_binary + 0.2 * mask * (~temp_binary)
+
+        def _compute_projected_masks(use_support_as_selected: bool = False):
+            raw_masks = [_get_attn_mask(idx) for idx in range(len(camera_list))]
+            support_weights, support_weights_cnt = accumulate_projected_gaussian_mask(
+                gaussian_xyz=gaussians.get_xyz.detach(),
+                camera_list=camera_list,
+                image_masks=raw_masks,
+                chunk_size=gaussian_mask_chunk,
+                depth_tolerance=gaussian_mask_depth_tolerance,
+            )
+            support_mask_local = normalize_gaussian_support_mask(
+                weight_sum=support_weights,
+                weight_count=support_weights_cnt,
+            ).clamp(0.0, 1.0)
+            if use_support_as_selected:
+                selected_mask_local = support_mask_local.detach().clone()
+            else:
+                selected_weights, selected_weights_cnt = accumulate_projected_gaussian_mask(
+                    gaussian_xyz=gaussians.get_xyz.detach(),
+                    camera_list=camera_list,
+                    image_masks=[_soften_attn_mask(mask) for mask in raw_masks],
+                    chunk_size=gaussian_mask_chunk,
+                    depth_tolerance=gaussian_mask_depth_tolerance,
+                )
+                selected_mask_local = normalize_gaussian_support_mask(
+                    weight_sum=selected_weights,
+                    weight_count=selected_weights_cnt,
+                ).clamp(0.0, 1.0)
+            return selected_mask_local, support_mask_local
+
+        def _compute_rasterizer_masks():
             attn_weights = torch.zeros_like(gaussians._opacity)
             attn_weights_cnt = torch.zeros_like(gaussians._opacity, dtype=torch.int32)
+            support_weights = torch.zeros_like(gaussians._opacity)
+            support_weights_cnt = torch.zeros_like(gaussians._opacity, dtype=torch.int32)
 
-            for step, batch in enumerate(tqdm(train_dataloader, desc="Attention Weighting")):
-                idx = batch['idx'].item()
-                camera = camera_list[idx]
-
-                attn_mask = attn_list[step].to(render_device).float()
-                
-                temp_binary = attn_mask > 0.5
-                attn_mask = attn_mask * temp_binary + 0.2 * attn_mask * (~temp_binary)
-                attn_mask = attn_mask.unsqueeze(0)
-
+            for idx, camera in enumerate(tqdm(camera_list, desc="Attention Weighting")):
+                raw_attn_mask = _get_attn_mask(idx).unsqueeze(0)
+                attn_mask = _soften_attn_mask(raw_attn_mask.clone())
                 gaussians.apply_weights(camera, attn_weights, attn_weights_cnt, attn_mask)
+                gaussians.apply_weights(camera, support_weights, support_weights_cnt, raw_attn_mask)
 
-            attn_weights /= attn_weights_cnt + 1e-7
-            selected_mask = attn_weights[:, 0]
+            attn_weights = attn_weights / (attn_weights_cnt + 1e-7)
+            selected_mask_local = attn_weights[:, 0].clamp(0.0, 1.0)
+            support_mask_local = normalize_gaussian_support_mask(
+                weight_sum=support_weights,
+                weight_count=support_weights_cnt,
+            ).clamp(0.0, 1.0)
+            return selected_mask_local, support_mask_local
 
-        gaussians.set_mask(selected_mask)
-        gaussians.apply_grad_mask(selected_mask)
+        def _is_rasterizer_mask_failure(exc: Exception) -> bool:
+            msg = str(exc).lower()
+            return (
+                "out of memory" in msg
+                or "illegal memory access" in msg
+                or "apply_weights" in msg
+                or "cuda error" in msg
+            )
+
+        if skip_agt:
+            if keep_support_when_skip_agt:
+                print("[WARN] EDITSPLAT_SKIP_AGT=1: skip AGT rasterizer path but keep projected SAM3 support guidance.")
+                selected_mask, support_mask = _compute_projected_masks(use_support_as_selected=True)
+            else:
+                print("[WARN] EDITSPLAT_SKIP_AGT=1: skip attention-guided trimming, use full mask.")
+                selected_mask = torch.ones_like(gaussians._opacity[:, 0], dtype=torch.float32)
+                support_mask = selected_mask.detach().clone()
+        else:
+            if gaussian_mask_mode == "projection":
+                selected_mask, support_mask = _compute_projected_masks()
+                print("[INFO] Gaussian mask accumulation mode=projection")
+            elif gaussian_mask_mode == "rasterizer":
+                selected_mask, support_mask = _compute_rasterizer_masks()
+                print("[INFO] Gaussian mask accumulation mode=rasterizer")
+            elif gaussian_mask_mode == "auto":
+                try:
+                    selected_mask, support_mask = _compute_rasterizer_masks()
+                    print("[INFO] Gaussian mask accumulation mode=rasterizer(auto)")
+                except RuntimeError as exc:
+                    if not _is_rasterizer_mask_failure(exc):
+                        raise
+                    print(f"[WARN] Rasterizer gaussian mask accumulation failed, fallback to projection. exc={exc}")
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    selected_mask, support_mask = _compute_projected_masks()
+            else:
+                raise RuntimeError(
+                    f"Unsupported EDITSPLAT_GAUSSIAN_MASK_MODE={gaussian_mask_mode}. "
+                    "Choose projection, rasterizer, or auto."
+                )
+
+        semantic_guidance_enabled = _env_flag("EDITSPLAT_ENABLE_SEMANTIC_GS_GUIDANCE", False)
+        semantic_support_weight = float(os.environ.get("EDITSPLAT_SEMANTIC_SUPPORT_WEIGHT", "0.5"))
+        semantic_color_scale = float(os.environ.get("EDITSPLAT_SEMANTIC_COLOR_SCALE", "1.0"))
+        semantic_position_scale = float(os.environ.get("EDITSPLAT_SEMANTIC_POSITION_SCALE", "1.0"))
+        semantic_bg_weight = float(os.environ.get("EDITSPLAT_SEMANTIC_BG_WEIGHT", "0.15"))
+        semantic_mask_power = float(os.environ.get("EDITSPLAT_SEMANTIC_MASK_POWER", "1.0"))
+        semantic_label_threshold = float(os.environ.get("EDITSPLAT_SEMANTIC_LABEL_THRESHOLD", "0.0"))
+        semantic_background_floor = float(
+            os.environ.get(
+                "EDITSPLAT_SEMANTIC_LABEL_BG_FLOOR",
+                os.environ.get("EDITSPLAT_SEMANTIC_BACKGROUND_FLOOR", "0.0"),
+            )
+        )
+        semantic_summary_threshold = semantic_label_threshold if semantic_label_threshold > 0.0 else 0.5
+        semantic_freeze_geometry = _env_flag("EDITSPLAT_SEMANTIC_FREEZE_GEOMETRY", False)
+        semantic_guidance = build_semantic_guidance(
+            selected_mask=selected_mask,
+            support_mask=support_mask,
+            enabled=semantic_guidance_enabled,
+            support_weight=semantic_support_weight,
+            color_scale=semantic_color_scale,
+            position_scale=semantic_position_scale,
+            freeze_geometry=semantic_freeze_geometry,
+            mask_power=semantic_mask_power,
+            label_threshold=semantic_label_threshold,
+            background_floor=semantic_background_floor,
+        )
+
+        view_mask_summary_limit = max(1, _env_int("EDITSPLAT_DEBUG_MASK_SUMMARY_LIMIT", 8))
+        view_mask_summaries = []
+        for view_idx in sorted(attn_masks_by_view.keys())[:view_mask_summary_limit]:
+            view_mask = attn_masks_by_view[view_idx]
+            view_mask_summaries.append(
+                {
+                    "view_idx": int(view_idx),
+                    "distribution": summarize_mask_distribution(view_mask),
+                    "full": summarize_mask(view_mask),
+                }
+            )
+
+        gaussian_mask_stats = {
+            "selected": summarize_mask_distribution(selected_mask),
+            "support": summarize_mask_distribution(support_mask),
+            "final": summarize_mask_distribution(semantic_guidance.mask),
+            "selected_full": summarize_mask(selected_mask),
+            "support_full": summarize_mask(support_mask),
+            "final_full": summarize_mask(semantic_guidance.mask),
+            "selected_labels": summarize_gaussian_mask(selected_mask, label_threshold=semantic_summary_threshold),
+            "support_labels": summarize_gaussian_mask(support_mask, label_threshold=semantic_summary_threshold),
+            "final_labels": summarize_gaussian_mask(semantic_guidance.mask, label_threshold=semantic_summary_threshold),
+            "selected_support_overlap": summarize_mask_overlap(selected_mask, support_mask, threshold=semantic_summary_threshold),
+            "selected_final_overlap": summarize_mask_overlap(selected_mask, semantic_guidance.mask, threshold=semantic_summary_threshold),
+            "support_final_overlap": summarize_mask_overlap(support_mask, semantic_guidance.mask, threshold=semantic_summary_threshold),
+            "view_mask_summaries": view_mask_summaries,
+            "view_mask_summary_limit": int(view_mask_summary_limit),
+            "semantic_guidance_enabled": bool(semantic_guidance_enabled),
+            "used_support": bool(semantic_guidance.used_support),
+            "gaussian_mask_mode": gaussian_mask_mode,
+            "gaussian_mask_depth_tolerance": float(gaussian_mask_depth_tolerance),
+            "gaussian_mask_chunk": int(gaussian_mask_chunk),
+            "skip_agt": bool(skip_agt),
+            "keep_support_when_skip_agt": bool(keep_support_when_skip_agt),
+            "support_weight": float(semantic_support_weight),
+            "color_scale": float(semantic_guidance.color_scale),
+            "position_scale": float(semantic_guidance.position_scale),
+            "requested_position_scale": float(semantic_position_scale),
+            "requested_color_scale": float(semantic_color_scale),
+            "semantic_bg_weight": float(semantic_bg_weight),
+            "semantic_mask_power": float(semantic_mask_power),
+            "semantic_label_threshold": float(semantic_label_threshold),
+            "semantic_background_floor": float(semantic_background_floor),
+            "semantic_summary_threshold": float(semantic_summary_threshold),
+            "semantic_freeze_geometry": bool(semantic_freeze_geometry),
+        }
+
+        print(
+            "[INFO] Gaussian mask stats: "
+            f"selected_mean={gaussian_mask_stats['selected']['mean']:.4f} "
+            f"support_mean={gaussian_mask_stats['support']['mean']:.4f} "
+            f"final_mean={gaussian_mask_stats['final']['mean']:.4f} "
+            f"final_fg_ratio={gaussian_mask_stats['final_labels']['foreground_ratio']:.4f} "
+            f"selected_support_iou={gaussian_mask_stats['selected_support_overlap']['iou']:.4f}"
+        )
+
+        gaussian_mask_stats_path = _write_gaussian_mask_stats(dataset.model_path, gaussian_mask_stats)
+        if gaussian_mask_stats_path is not None:
+            print(f"[INFO] Gaussian mask stats written to {gaussian_mask_stats_path}")
+
+        gaussians.set_mask(semantic_guidance.mask)
+        gaussians.apply_grad_mask(
+            semantic_guidance.mask,
+            l_color=semantic_guidance.color_scale,
+            l_position=semantic_guidance.position_scale,
+        )
 
         iteration = start_iteration
         skip_backward_on_error = _env_flag("EDITSPLAT_SKIP_3DGS_BACKWARD_ON_ERROR", False)
+        skip_render_on_error = _env_flag("EDITSPLAT_SKIP_3DGS_RENDER_ON_ERROR", False)
         abort_optim = False
         for epoch in range(opt.epoch):
             for step, batch in enumerate(tqdm(train_dataloader, desc=f"EPOCH {epoch}: optimizing 3D Gaussian Splatting")):
@@ -1892,8 +2004,21 @@ class Editsplat_Pipeline(FluxPipeline):
                 gaussians.update_learning_rate(iteration)
 
                 viewspace_point_list = []
-                
-                render_pkg = render(viewpoint_cam, gaussians, pipe, background)
+
+                try:
+                    render_pkg = render(viewpoint_cam, gaussians, pipe, background)
+                except RuntimeError as exc:
+                    msg = str(exc).lower()
+                    if skip_render_on_error and ("out of memory" in msg or "illegal memory access" in msg):
+                        print(
+                            "[WARN] EDITSPLAT_SKIP_3DGS_RENDER_ON_ERROR=1: "
+                            f"skip optimization view idx={idx} due to render failure: {exc}"
+                        )
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        iteration += 1
+                        continue
+                    raise
 
                 rendered_image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
@@ -1910,9 +2035,23 @@ class Editsplat_Pipeline(FluxPipeline):
                 if edited_image_MFG_for_3dgs.shape[1] != image_height or edited_image_MFG_for_3dgs.shape[2] != image_width:
                     edited_image_MFG_for_3dgs = F.interpolate(edited_image_MFG_for_3dgs, size=(image_height, image_width), mode='bilinear', align_corners=True)
 
+                loss_guidance_mask = None
+                if _env_flag("EDITSPLAT_ENABLE_SEMANTIC_LOSS_MASK", True) and idx in attn_masks_by_view:
+                    loss_guidance_mask = expand_loss_guidance_mask(
+                        mask=attn_masks_by_view[idx].to(device=rendered_image.device, dtype=rendered_image.dtype),
+                        background_weight=float(os.environ.get("EDITSPLAT_SEMANTIC_BG_WEIGHT", "0.15")),
+                    )
+
                 # calculate loss
-                Ll1 = l1_loss(rendered_image, edited_image_MFG_for_3dgs)
-                p_loss = lpips_loss_fn(torch.clamp(edited_image_MFG_for_3dgs, -1, 1), torch.clamp(rendered_image, -1, 1))
+                if loss_guidance_mask is not None:
+                    Ll1 = l1_loss(rendered_image * loss_guidance_mask, edited_image_MFG_for_3dgs * loss_guidance_mask)
+                    p_loss = lpips_loss_fn(
+                        torch.clamp(edited_image_MFG_for_3dgs * loss_guidance_mask, -1, 1),
+                        torch.clamp(rendered_image * loss_guidance_mask, -1, 1),
+                    )
+                else:
+                    Ll1 = l1_loss(rendered_image, edited_image_MFG_for_3dgs)
+                    p_loss = lpips_loss_fn(torch.clamp(edited_image_MFG_for_3dgs, -1, 1), torch.clamp(rendered_image, -1, 1))
                 
                 total_loss = Ll1 + p_loss 
 
@@ -2010,19 +2149,33 @@ if __name__ == "__main__":
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    pipeline = Editsplat_Pipeline.from_pretrained(
-        "black-forest-labs/FLUX.1-dev",
-        torch_dtype=dtype,
-        use_safetensors=True,
-        token=os.environ.get("HF_TOKEN", None),
-    ).to(device)
-
     # 取出每个参数组
     dataset = lp.extract(args)
     opt = op.extract(args)
     pipe = pp.extract(args)
     edp = ed.extract(args)
-    sdp = sdp.extract(args)
+    sdp_cfg = sdp.extract(args)
+
+    base_model_id = os.environ.get("EDITSPLAT_BASE_MODEL_ID", "black-forest-labs/FLUX.1-dev")
+    external_backend_only = should_bootstrap_external_backend_only(
+        flow_method=getattr(edp, "flow_method", "flowedit"),
+        flow_model_key=getattr(edp, "flow_model_key", "flux1-dev"),
+        env_enabled=_env_flag("EDITSPLAT_EXTERNAL_BACKEND_ONLY", False),
+    )
+    if external_backend_only:
+        print(
+            "[WARN] EDITSPLAT_EXTERNAL_BACKEND_ONLY=1: "
+            f"skip base FLUX bootstrap for flow_method={getattr(edp, 'flow_method', '')} "
+            f"flow_model_key={getattr(edp, 'flow_model_key', '')}."
+        )
+        pipeline = Editsplat_Pipeline.build_external_backend_only()
+    else:
+        pipeline = Editsplat_Pipeline.from_pretrained(
+            base_model_id,
+            torch_dtype=dtype,
+            use_safetensors=True,
+            token=os.environ.get("HF_TOKEN", None),
+        ).to(device)
     pipeline.configure_edit_backend(edp)
 
     os.makedirs(dataset.model_path, exist_ok=True)
@@ -2035,7 +2188,7 @@ if __name__ == "__main__":
         opt=opt,
         pipe=pipe,
         ed=edp,
-        sdp=sdp,          # 新增
+        sdp=sdp_cfg,          # 新增
     )
 
     print("\nEditing complete.")
@@ -2061,3 +2214,4 @@ python run_editing_flow.py \
     --flow_seed 10 \
     --filtering_ratio 0.65 
 '''
+    
