@@ -40,7 +40,7 @@ def default_dataset_face(casebank_root: Path | None = None) -> Path:
 ROOT = Path(
     "/dev_vepfs/rc_wu/edit/EditSplat/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567"
 ).resolve()
-WRAPPER = ROOT / "scripts" / "run_sd35_ttt3r_sam3_wrapper.py"
+WRAPPER = Path("/dev_vepfs/rc_wu/edit/CircleEditing/.legacy_pre_migration/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_sd35_ttt3r_sam3_wrapper.py").resolve()
 PYTHON = Path("/dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python").resolve()
 CASEBANK_ROOT = default_casebank_root()
 DATASET_FACE = default_dataset_face(CASEBANK_ROOT)
