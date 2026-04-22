@@ -40,3 +40,20 @@ Recommended next invocation shape:
 ```bash
 /dev_vepfs/rc_wu/envs/editsplat_multimodel_v2/bin/python   .legacy_pre_migration/runtime/EditSplat_overlay_20260326/sandboxes/20260322_editsplat_ttt3r_flowedit_sam3_4567/scripts/run_wave18_gpu3_five_rounds.py   --slot-gpu <FREE_GPU>   --wave-name 20260422_wave20_frozen_carrier_probe
 ```
+
+## 2026-04-23 Mirror Recovery And Relaunch Attempt
+- Development machine direct access to `huggingface.co` still timed out, and the PC reverse proxy port `17890` was not listening.
+- `hf-mirror.com` was directly reachable from `dev-intern-02`; the CUT3R release file resolved successfully via:
+  - `https://hf-mirror.com/datasets/zhangify/CUT3R_release/resolve/main/cut3r_512_dpt_4_64.pth?download=true`
+- Recovered checkpoint to the canonical soft-link target:
+  - `/dev_vepfs/rc_wu/cache/models/ttt3r/cut3r_512_dpt_4_64.pth`
+  - size: `3173761006` bytes (`~3.0G`)
+- Relaunch status:
+  - launcher and overlay-wrapper fixes are already in `codex/20260422-canonical-carrier-freeze`
+  - a fresh `GPU0` relaunch was attempted after the checkpoint recovery
+  - before the run could safely proceed, `GPU0` and `GPU2` became occupied by other jobs (`~42.2 GiB`, `100% util`)
+  - the new wave runner was terminated immediately to respect the free-GPU-only constraint
+- Net effect:
+  - the network / checkpoint blocker is resolved
+  - the only remaining blocker is waiting for a truly free allowed GPU before restarting the five-round probe
+
