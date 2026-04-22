@@ -34,8 +34,20 @@ def _ones_like(x: Any) -> Any:
     return np.ones_like(np.asarray(x, dtype=np.float32), dtype=np.float32)
 
 
+def _full_like(x: Any, value: float) -> Any:
+    if _is_torch_tensor(x):
+        return torch.full_like(x, float(value), dtype=torch.float32)
+    return np.full_like(np.asarray(x, dtype=np.float32), float(value), dtype=np.float32)
+
+
 def _mul(a: Any, b: Any) -> Any:
     return a * b
+
+
+def _maximum(a: Any, b: Any) -> Any:
+    if _is_torch_tensor(a) or _is_torch_tensor(b):
+        return torch.maximum(_to_work_tensor(a), _to_work_tensor(b))
+    return np.maximum(np.asarray(a, dtype=np.float32), np.asarray(b, dtype=np.float32))
 
 
 def _to_scalar(x: Any, op: str) -> float:
@@ -47,7 +59,7 @@ def _to_scalar(x: Any, op: str) -> float:
 
 
 def _safe_shape2d(x: Any) -> Tuple[int, int]:
-    shape = tuple(getattr(x, "shape", ()))
+    shape = tuple(getattr(x, 'shape', ()))
     if len(shape) < 2:
         return (1, 1)
     return int(shape[-2]), int(shape[-1])
@@ -63,23 +75,29 @@ def _prepare_like(x: Optional[Any], reference: Any) -> Optional[Any]:
     if (out_h, out_w) == (ref_h, ref_w):
         return _clip01(out)
     if _is_torch_tensor(out) and _is_torch_tensor(ref):
-        import torch.nn.functional as F  # local import keeps numpy-only smoke lightweight
+        import torch.nn.functional as F
 
         if out.ndim == 2:
             out = out.unsqueeze(0).unsqueeze(0)
         elif out.ndim == 3:
             out = out.unsqueeze(0)
-        out = F.interpolate(out.float(), size=(ref_h, ref_w), mode="bilinear", align_corners=False)
+        out = F.interpolate(out.float(), size=(ref_h, ref_w), mode='bilinear', align_corners=False)
         if out.ndim == 4 and out.shape[0] == 1:
             out = out[0]
         return _clip01(out)
-    # numpy fallback (nearest-like resize via repeat/crop) for smoke tests.
     out_np = np.asarray(out, dtype=np.float32)
     y_repeat = max(1, int(np.ceil(ref_h / max(1, out_h))))
     x_repeat = max(1, int(np.ceil(ref_w / max(1, out_w))))
     out_np = np.repeat(np.repeat(out_np, y_repeat, axis=-2), x_repeat, axis=-1)
     out_np = out_np[..., :ref_h, :ref_w]
     return _clip01(out_np)
+
+
+def _to_prior_storage(x: Any) -> Any:
+    work = _clip01(_to_work_tensor(x))
+    if _is_torch_tensor(work):
+        return work.detach().to(device='cpu', dtype=torch.float16)
+    return np.asarray(work, dtype=np.float16)
 
 
 @dataclass
@@ -133,29 +151,36 @@ def apply_elite_correction_weights(
 def _tensor_stats(tensor: Any) -> Dict[str, float]:
     w = _clip01(_to_work_tensor(tensor))
     return {
-        "mean": _to_scalar(w, "mean"),
-        "min": _to_scalar(w, "min"),
-        "max": _to_scalar(w, "max"),
-        "mass": _to_scalar(w, "sum"),
+        'mean': _to_scalar(w, 'mean'),
+        'min': _to_scalar(w, 'min'),
+        'max': _to_scalar(w, 'max'),
+        'mass': _to_scalar(w, 'sum'),
     }
 
 
 @dataclass
 class SourceCanonicalPrior:
-    schema: str = "source_canonical_prior_v0"
-    created_at_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
-    updated_at_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    schema: str = 'source_canonical_prior_v1'
+    created_at_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec='seconds'))
+    updated_at_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec='seconds'))
     total_updates: int = 0
     views: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    tensor_state: Dict[str, Dict[str, Any]] = field(default_factory=dict, repr=False)
 
     def to_serializable(self) -> Dict[str, Any]:
+        views = {}
+        for key, entry in self.views.items():
+            out = dict(entry)
+            out['has_tensor_state'] = key in self.tensor_state
+            views[key] = out
         return {
-            "schema": self.schema,
-            "created_at_utc": self.created_at_utc,
-            "updated_at_utc": self.updated_at_utc,
-            "total_updates": int(self.total_updates),
-            "num_views": int(len(self.views)),
-            "views": self.views,
+            'schema': self.schema,
+            'created_at_utc': self.created_at_utc,
+            'updated_at_utc': self.updated_at_utc,
+            'total_updates': int(self.total_updates),
+            'num_views': int(len(self.views)),
+            'num_tensor_views': int(len(self.tensor_state)),
+            'views': views,
         }
 
 
@@ -170,7 +195,7 @@ def update_source_canonical_prior(
 ) -> MutableMapping[str, Any]:
     key = str(int(view_idx))
     entry = dict(prior.views.get(key, {}))
-    old_count = int(entry.get("count", 0))
+    old_count = int(entry.get('count', 0))
     new_count = old_count + 1
 
     edit_stats = _tensor_stats(edit_weight)
@@ -183,29 +208,78 @@ def update_source_canonical_prior(
             return float(curr)
         return float((prev * old_count + curr) / new_count)
 
-    running = dict(entry.get("running_mean", {}))
-    running["edit_mean"] = _running_mean(float(running.get("edit_mean", 0.0)), edit_stats["mean"])
-    running["preserve_mean"] = _running_mean(float(running.get("preserve_mean", 0.0)), preserve_stats["mean"])
-    running["confidence_mean"] = _running_mean(float(running.get("confidence_mean", 0.0)), confidence_stats["mean"])
+    running = dict(entry.get('running_mean', {}))
+    running['edit_mean'] = _running_mean(float(running.get('edit_mean', 0.0)), edit_stats['mean'])
+    running['preserve_mean'] = _running_mean(float(running.get('preserve_mean', 0.0)), preserve_stats['mean'])
+    running['confidence_mean'] = _running_mean(float(running.get('confidence_mean', 0.0)), confidence_stats['mean'])
     if support_stats is not None:
-        running["support_mean"] = _running_mean(float(running.get("support_mean", 0.0)), support_stats["mean"])
+        running['support_mean'] = _running_mean(float(running.get('support_mean', 0.0)), support_stats['mean'])
 
     snapshot = {
-        "edit": edit_stats,
-        "preserve": preserve_stats,
-        "confidence": confidence_stats,
-        "support": support_stats,
-        "metadata": dict(metadata or {}),
-        "updated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        'edit': edit_stats,
+        'preserve': preserve_stats,
+        'confidence': confidence_stats,
+        'support': support_stats,
+        'metadata': dict(metadata or {}),
+        'updated_at_utc': datetime.now(timezone.utc).isoformat(timespec='seconds'),
     }
     entry.update(
         {
-            "count": new_count,
-            "running_mean": running,
-            "last": snapshot,
+            'count': new_count,
+            'running_mean': running,
+            'last': snapshot,
         }
     )
     prior.views[key] = entry
+
+    tensor_entry = dict(prior.tensor_state.get(key, {}))
+    for name, tensor in {
+        'edit': edit_weight,
+        'preserve': preserve_weight,
+        'confidence': confidence_weight,
+        'support': support_weight,
+    }.items():
+        if tensor is None:
+            continue
+        curr = _clip01(_to_work_tensor(tensor))
+        prev = _prepare_like(tensor_entry.get(name), curr)
+        if prev is None or old_count <= 0:
+            avg = curr
+        else:
+            avg = prev + (curr - prev) / float(new_count)
+        tensor_entry[name] = _to_prior_storage(avg)
+    prior.tensor_state[key] = tensor_entry
+
     prior.total_updates += 1
-    prior.updated_at_utc = snapshot["updated_at_utc"]
+    prior.updated_at_utc = snapshot['updated_at_utc']
     return entry
+
+
+def build_source_canonical_prior_mask(
+    prior: SourceCanonicalPrior,
+    view_idx: int,
+    reference: Any,
+    support_floor: float = 0.0,
+    confidence_floor: float = 0.0,
+) -> Optional[Any]:
+    entry = prior.tensor_state.get(str(int(view_idx)))
+    if not entry:
+        return None
+
+    edit = _prepare_like(entry.get('edit'), reference)
+    if edit is None:
+        return None
+    support = _prepare_like(entry.get('support'), reference)
+    confidence = _prepare_like(entry.get('confidence'), reference)
+    mask = _clip01(edit)
+    if support is not None:
+        floor = float(max(0.0, support_floor))
+        if floor > 0.0:
+            support = _maximum(support, _full_like(support, floor))
+        mask = _maximum(mask, _clip01(support))
+    if confidence is None:
+        confidence = _ones_like(mask)
+    conf_floor = float(max(0.0, confidence_floor))
+    if conf_floor > 0.0:
+        confidence = _maximum(confidence, _full_like(confidence, conf_floor))
+    return _clip01(_mul(mask, _clip01(confidence)))

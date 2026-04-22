@@ -51,6 +51,17 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+from utils.ttt3r_elite_blite import (
+    ELiteCorrectionConfig,
+    SourceCanonicalPrior,
+    apply_elite_correction_weights,
+    build_source_canonical_prior_mask,
+    update_source_canonical_prior,
+)
+from utils.canonical_edit_field import build_canonical_target, blend_targets, build_frozen_canonical_carrier
+from utils.carrier_baseline import coerce_tensor_like
+
+
 _MASK_BACKEND_INFO = {
     "requested": None,
     "effective": None,
@@ -345,6 +356,7 @@ def _patch_ttt3r_runtime_device() -> None:
         self.fit_view_dumped_keys = set()
         self.support_mask_cache = {}
         self.support_mask_meta = {}
+        self.source_canonical_prior = SourceCanonicalPrior()
 
         global _CURRENT_RUNTIME
         _CURRENT_RUNTIME = self
@@ -488,6 +500,13 @@ def _env_float(name: str, default: float) -> float:
         return float(raw)
     except ValueError:
         return float(default)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_support_role(role: Optional[str]) -> str:
@@ -736,7 +755,11 @@ def _load_legacy_wrapper():
 
 
 _LEGACY_WRAPPER = _load_legacy_wrapper()
-_LEGACY_LANGSAM_LOADER = _LEGACY_WRAPPER.ref._load_langsam  # type: ignore[attr-defined]
+_LEGACY_LANGSAM_LOADER = getattr(_LEGACY_WRAPPER.ref, "_load_mask_backend", None)
+if _LEGACY_LANGSAM_LOADER is None:
+    _LEGACY_LANGSAM_LOADER = getattr(_LEGACY_WRAPPER.ref, "_load_langsam", None)
+if _LEGACY_LANGSAM_LOADER is None:
+    raise RuntimeError("Legacy TTT3R wrapper could not find a compatible mask backend loader.")
 _patch_ttt3r_runtime_device()
 
 
@@ -1414,6 +1437,245 @@ def _patch_fit_mask_fusion() -> None:
 
 
 _patch_fit_mask_fusion()
+
+
+def _patch_elite_confidence_and_blite_prior() -> None:
+    orig_sd3_edit = getattr(_LEGACY_WRAPPER, "_sd3_edit_with_proximal", None)
+    if orig_sd3_edit is None or getattr(orig_sd3_edit, "_editsplat_elite_blite_patch", False):
+        return
+
+
+def _build_canonical_proxy_pil(
+    *,
+    image_pil: Image.Image,
+    proxy_pil: Image.Image,
+    runtime,
+    idx: int,
+    support_mask: Optional[torch.Tensor],
+    edit_mask: torch.Tensor,
+    confidence_weight: torch.Tensor,
+) -> tuple[Image.Image, Optional[dict]]:
+    if not _env_flag("EDITSPLAT_ENABLE_CANONICAL_CARRIER", False):
+        return proxy_pil, None
+
+    src_cached = getattr(runtime, "source_image_cache", {}).get(idx)
+    if isinstance(src_cached, torch.Tensor):
+        src_tensor = src_cached.to(dtype=torch.float32)
+    else:
+        src_tensor = _LEGACY_WRAPPER._pil_to_tensor01(image_pil).to(dtype=torch.float32)
+    proxy_tensor = _LEGACY_WRAPPER._pil_to_tensor01(proxy_pil).to(dtype=torch.float32)
+    proxy_tensor = coerce_tensor_like(proxy_tensor, src_tensor)
+
+    teacher_cached = getattr(runtime, "initial_edit_cache", {}).get(idx)
+    if isinstance(teacher_cached, torch.Tensor):
+        teacher_tensor = teacher_cached.to(dtype=torch.float32)
+    else:
+        teacher_tensor = proxy_tensor
+    teacher_tensor = coerce_tensor_like(teacher_tensor, src_tensor)
+
+    carrier_edit_mask = edit_mask.detach().float()
+    if carrier_edit_mask.ndim == 3:
+        carrier_edit_mask = carrier_edit_mask.unsqueeze(0)
+    carrier_edit_mask = coerce_tensor_like(carrier_edit_mask, src_tensor)
+
+    carrier_support = None
+    if isinstance(support_mask, torch.Tensor):
+        carrier_support = support_mask.detach().float()
+        if carrier_support.ndim == 3:
+            carrier_support = carrier_support.unsqueeze(0)
+        carrier_support = coerce_tensor_like(carrier_support, src_tensor)
+
+    carrier_confidence = confidence_weight.detach().float()
+    if carrier_confidence.ndim == 3:
+        carrier_confidence = carrier_confidence.unsqueeze(0)
+    carrier_confidence = coerce_tensor_like(carrier_confidence, src_tensor)
+
+    prior_mask = None
+    prior = getattr(runtime, "source_canonical_prior", None)
+    if isinstance(prior, SourceCanonicalPrior):
+        prior_mask = build_source_canonical_prior_mask(
+            prior=prior,
+            view_idx=idx,
+            reference=carrier_edit_mask,
+            support_floor=_env_float("EDITSPLAT_CANONICAL_PRIOR_SUPPORT_FLOOR", 0.0),
+            confidence_floor=_env_float("EDITSPLAT_CANONICAL_PRIOR_CONFIDENCE_FLOOR", 0.0),
+        )
+        if prior_mask is not None:
+            prior_mask = coerce_tensor_like(prior_mask, carrier_edit_mask)
+
+    residual_clamp = _env_float("EDITSPLAT_CANONICAL_RESIDUAL_CLAMP", 0.0)
+    residual_limit = residual_clamp if residual_clamp > 0.0 else None
+    carrier_payload = build_frozen_canonical_carrier(
+        source_view=src_tensor,
+        teacher_edit=teacher_tensor,
+        flow_proxy=proxy_tensor,
+        edit_mask=carrier_edit_mask,
+        confidence_weight=carrier_confidence,
+        support_mask=carrier_support,
+        prior_mask=prior_mask,
+        residual_clamp=residual_limit,
+        teacher_residual_weight=_env_float("EDITSPLAT_FROZEN_CARRIER_TEACHER_WEIGHT", 0.72),
+        blend_alpha=_env_float("EDITSPLAT_CANONICAL_BLEND_ALPHA", 0.60),
+    )
+    blended_proxy = coerce_tensor_like(carrier_payload["carrier_proxy"], src_tensor)
+
+    debug_payload = {
+        "source": src_tensor,
+        "teacher_edit": teacher_tensor,
+        "proxy_input": proxy_tensor,
+        "canonical_target": coerce_tensor_like(carrier_payload["carrier_target"], src_tensor),
+        "canonical_residual": coerce_tensor_like(carrier_payload["carrier_residual"], src_tensor),
+        "carrier_mask": coerce_tensor_like(carrier_payload["carrier_mask"], carrier_edit_mask),
+        "carrier_proxy": blended_proxy,
+        "proxy_blended": blended_proxy,
+        "prior_mask": coerce_tensor_like(prior_mask, carrier_edit_mask) if prior_mask is not None else None,
+        "teacher_residual": coerce_tensor_like(carrier_payload["teacher_residual"], src_tensor),
+        "flow_residual": coerce_tensor_like(carrier_payload["flow_residual"], src_tensor),
+    }
+    return _LEGACY_WRAPPER._tensor_to_pil01(blended_proxy), debug_payload
+
+    def _sd3_edit_with_elite_blite(
+        adapter,
+        image_pil,
+        proxy_pil,
+        src_prompt,
+        tar_prompt,
+        params,
+        edit_weight_px: torch.Tensor,
+        preserve_weight_px: torch.Tensor,
+        runtime,
+    ):
+        corrected_edit = edit_weight_px
+        corrected_preserve = preserve_weight_px
+        support_mask = None
+        idx = int(getattr(runtime, "current_idx", -1))
+        support_role = os.environ.get("EDITSPLAT_SAM3_MFG_ROLE", "gt_view")
+        support_payload = _get_support_payload(runtime, idx, role=support_role)
+        support_mask = _payload_mask(support_payload, image_size=tuple(edit_weight_px.shape[-2:]))
+        if isinstance(support_mask, torch.Tensor):
+            support_mask = support_mask.to(device=edit_weight_px.device, dtype=edit_weight_px.dtype)
+
+        confidence_weight = (edit_weight_px + preserve_weight_px).clamp(0.0, 1.0)
+        edit_mask = (edit_weight_px / (confidence_weight + 1e-6)).clamp(0.0, 1.0)
+        elite_cfg = ELiteCorrectionConfig(
+            enabled=_env_flag("EDITSPLAT_ELITE_CONF_CORRECTION", False),
+            support_alpha=max(0.0, min(1.0, _env_float("EDITSPLAT_ELITE_SUPPORT_ALPHA", 0.35))),
+            edit_alpha=max(0.0, min(1.0, _env_float("EDITSPLAT_ELITE_EDIT_ALPHA", 0.35))),
+            confidence_alpha=max(0.0, min(1.0, _env_float("EDITSPLAT_ELITE_CONFIDENCE_ALPHA", 0.45))),
+            scale_min=max(0.0, _env_float("EDITSPLAT_ELITE_SCALE_MIN", 0.0)),
+            scale_max=max(0.0, _env_float("EDITSPLAT_ELITE_SCALE_MAX", 1.0)),
+        )
+        corrected_edit, corrected_preserve, combo_weight = apply_elite_correction_weights(
+            edit_weight=edit_weight_px,
+            preserve_weight=preserve_weight_px,
+            support_weight=support_mask,
+            edit_mask=edit_mask,
+            confidence_weight=confidence_weight,
+            cfg=elite_cfg,
+        )
+        combo_mean = (
+            float(combo_weight.float().mean().item())
+            if isinstance(combo_weight, torch.Tensor)
+            else float(np.asarray(combo_weight, dtype=np.float32).mean())
+        )
+        if elite_cfg.enabled and not getattr(runtime, "_editsplat_elite_correction_logged", False):
+            print(
+                "[E-lite] confidence correction enabled: "
+                f"support_alpha={elite_cfg.support_alpha:.3f} "
+                f"edit_alpha={elite_cfg.edit_alpha:.3f} "
+                f"confidence_alpha={elite_cfg.confidence_alpha:.3f} "
+                f"combo_mean={combo_mean:.4f}"
+            )
+            runtime._editsplat_elite_correction_logged = True
+
+        if _env_flag("EDITSPLAT_BLITE_CANONICAL_PRIOR", False):
+            prior = getattr(runtime, "source_canonical_prior", None)
+            if not isinstance(prior, SourceCanonicalPrior):
+                prior = SourceCanonicalPrior()
+                runtime.source_canonical_prior = prior
+            update_source_canonical_prior(
+                prior=prior,
+                view_idx=idx,
+                edit_weight=corrected_edit,
+                preserve_weight=corrected_preserve,
+                confidence_weight=confidence_weight,
+                support_weight=support_mask,
+                metadata={
+                    "mode": str(getattr(getattr(runtime, "cfg", None), "mode", "unknown")),
+                    "support_role": support_role,
+                    "elite_enabled": bool(elite_cfg.enabled),
+                    "elite_combo_mean": combo_mean,
+                },
+            )
+            if _env_flag("EDITSPLAT_BLITE_CANONICAL_DUMP", True):
+                dump_base = getattr(runtime, "dump_root", None)
+                if dump_base is None:
+                    model_path = os.environ.get("EDITSPLAT_ACTIVE_MODEL_PATH")
+                    if model_path:
+                        dump_base = Path(model_path) / "debug_intermediates"
+                if dump_base is not None:
+                    dump_dir = Path(dump_base)
+                    dump_dir.mkdir(parents=True, exist_ok=True)
+                    dump_path = dump_dir / "source_canonical_prior_summary.json"
+                    dump_path.write_text(
+                        json.dumps(prior.to_serializable(), indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    if not getattr(runtime, "_editsplat_blite_prior_logged", False):
+                        print(f"[B-lite] source canonical prior summary path={dump_path}")
+                        runtime._editsplat_blite_prior_logged = True
+
+        proxy_pil_for_edit, carrier_debug = _build_canonical_proxy_pil(
+            image_pil=image_pil,
+            proxy_pil=proxy_pil,
+            runtime=runtime,
+            idx=idx,
+            support_mask=support_mask,
+            edit_mask=edit_mask,
+            confidence_weight=confidence_weight,
+        )
+        if carrier_debug is not None and hasattr(runtime, "dump_stage"):
+            runtime.dump_stage(
+                "mfg_edit",
+                {
+                    "canonical_source": carrier_debug["source"],
+                    "canonical_proxy_input": carrier_debug["proxy_input"],
+                    "canonical_target": carrier_debug["canonical_target"],
+                    "canonical_residual": carrier_debug["canonical_residual"],
+                    "canonical_mask": carrier_debug["carrier_mask"],
+                    "canonical_proxy": carrier_debug["carrier_proxy"],
+                    "canonical_proxy_blended": carrier_debug["proxy_blended"],
+                    "canonical_prior_mask": carrier_debug["prior_mask"] if carrier_debug.get("prior_mask") is not None else torch.zeros_like(carrier_debug["carrier_mask"]),
+                    "canonical_teacher_residual": carrier_debug["teacher_residual"],
+                    "canonical_flow_residual": carrier_debug["flow_residual"],
+                },
+            )
+            if not getattr(runtime, "_editsplat_blite_carrier_logged", False):
+                print(
+                    "[B-lite] frozen canonical carrier enabled: "
+                    f"teacher_weight={_env_float('EDITSPLAT_FROZEN_CARRIER_TEACHER_WEIGHT', 0.72):.3f} "
+                    f"blend_alpha={_env_float('EDITSPLAT_CANONICAL_BLEND_ALPHA', 0.60):.3f} "
+                    f"residual_clamp={_env_float('EDITSPLAT_CANONICAL_RESIDUAL_CLAMP', 0.0):.3f}"
+                )
+                runtime._editsplat_blite_carrier_logged = True
+
+        return orig_sd3_edit(
+            adapter=adapter,
+            image_pil=image_pil,
+            proxy_pil=proxy_pil_for_edit,
+            src_prompt=src_prompt,
+            tar_prompt=tar_prompt,
+            params=params,
+            edit_weight_px=corrected_edit,
+            preserve_weight_px=corrected_preserve,
+            runtime=runtime,
+        )
+
+    _sd3_edit_with_elite_blite._editsplat_elite_blite_patch = True  # type: ignore[attr-defined]
+    _LEGACY_WRAPPER._sd3_edit_with_proximal = _sd3_edit_with_elite_blite
+
+
+_patch_elite_confidence_and_blite_prior()
 
 
 def _maybe_dump_sam3_failure(image_pil: Image.Image, prompt: str, reason: str) -> None:

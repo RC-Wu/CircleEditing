@@ -27,6 +27,9 @@ if str(ROOT) not in sys.path:
 if str(MULTI2D) not in sys.path:
     sys.path.insert(0, str(MULTI2D))
 
+from utils.carrier_baseline import build_a_baseline_carrier
+from utils.semantic_guidance import align_spatial_mask_to_target
+
 
 def _ensure_imagereward_stub() -> None:
     try:
@@ -795,13 +798,14 @@ def patch_fit_loss_control(
         )
         if mask is None:
             return orig_l1_loss(network_output, gt)
-        mask_dev = mask.to(device=network_output.device, dtype=network_output.dtype)
-        if mask_dev.ndim == 3:
-            mask_dev = mask_dev.unsqueeze(0)
         if network_output.ndim == 3:
             network_output = network_output.unsqueeze(0)
         if gt.ndim == 3:
             gt = gt.unsqueeze(0)
+        mask_dev = align_spatial_mask_to_target(mask, network_output).to(
+            device=network_output.device,
+            dtype=network_output.dtype,
+        )
         target_device = gt.device
         gt = gt.to(device=network_output.device, dtype=network_output.dtype)
         diff = (network_output - gt).abs()
@@ -851,9 +855,7 @@ def patch_fit_loss_control(
                     y = y.unsqueeze(0)
                 x = x.to(device=target_device, dtype=x.dtype)
                 y = y.to(device=target_device, dtype=x.dtype)
-                mask_dev = mask.to(device=target_device, dtype=x.dtype)
-                if mask_dev.ndim == 3:
-                    mask_dev = mask_dev.unsqueeze(0)
+                mask_dev = align_spatial_mask_to_target(mask, x).to(device=target_device, dtype=x.dtype)
                 x_masked = x * mask_dev + y.detach() * (1.0 - mask_dev)
                 y_masked = y
                 if hasattr(base_loss, "to"):
@@ -1142,6 +1144,22 @@ def patch_edit_methods(adapter, runtime: TTT3RRuntime) -> None:
         edit_weight = (geo_weight * edit_ratio).clamp(0.0, 1.0)
         preserve_weight = (geo_weight * preserve_ratio).clamp(0.0, 1.0)
 
+        carrier_mode = os.environ.get("EDITSPLAT_CARRIER_MODE", "").strip().lower()
+        carrier_payload = None
+        if carrier_mode in {"a_baseline", "a-baseline", "baseline_a"}:
+            carrier_payload = build_a_baseline_carrier(
+                source=_to_01_bchw(image),
+                initial_edit=_to_01_bchw(init_ref),
+                mf_cond=_to_01_bchw(MF_image_cond),
+                proxy=_to_01_bchw(proxy),
+                geo_weight=geo_weight.mean(dim=1, keepdim=True),
+                support_mask=support_mask if isinstance(support_mask, torch.Tensor) else None,
+                support_mix=_env_float("EDITSPLAT_A_BASELINE_SUPPORT_MIX", 0.25),
+                proxy_mix=_env_float("EDITSPLAT_A_BASELINE_PROXY_MIX", 0.5),
+                mask_floor=_env_float("EDITSPLAT_A_BASELINE_MASK_FLOOR", 0.0),
+            )
+            proxy = carrier_payload["carrier_proxy"].to(image.device, dtype=torch.float32)
+
         runtime.dump_stage(
             "mfg_edit",
             {
@@ -1155,6 +1173,8 @@ def patch_edit_methods(adapter, runtime: TTT3RRuntime) -> None:
                 "preserve_ratio": preserve_ratio,
                 "edit_weight": edit_weight,
                 "preserve_weight": preserve_weight,
+                "carrier_mask": carrier_payload["carrier_mask"] if carrier_payload is not None else geo_weight.mean(dim=1, keepdim=True),
+                "carrier_target": carrier_payload["carrier_target"] if carrier_payload is not None else _to_01_bchw(proxy),
             },
         )
 
