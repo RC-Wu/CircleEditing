@@ -21,6 +21,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[3]
+CURRENT_RUNTIME_ROOT = (Path(__file__).resolve().parents[6] / "runtime" / "EditSplat").resolve()
 LEGACY_WRAPPER = (
     ROOT / "sandboxes" / "20260319_aris_ttt3r_flowedit_45" / "scripts" / "run_sd35_ttt3r_proximal_wrapper.py"
 )
@@ -47,8 +48,10 @@ for _cache_dir in (
 ):
     _cache_dir.mkdir(parents=True, exist_ok=True)
 
+if str(CURRENT_RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(CURRENT_RUNTIME_ROOT))
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+    sys.path.insert(1, str(ROOT))
 
 
 from utils.ttt3r_elite_blite import (
