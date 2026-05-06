@@ -1,0 +1,102 @@
+{
+  "timestamp": "20260506_122412",
+  "case_dir": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/repos/CircleEditing/assets/review/frontier_seed1_constdepth_fixmask_dev01_20260326_123724",
+  "out_dir": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/runs/feedforward_proxy/20260506_122412_r5_balanced",
+  "view_count": 3,
+  "view_indices": [
+    0,
+    1,
+    2
+  ],
+  "view_sources": {
+    "view000": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/repos/CircleEditing/assets/review/frontier_seed1_constdepth_fixmask_dev01_20260326_123724/thumbs/view000_input.jpg",
+    "view001": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/repos/CircleEditing/assets/review/frontier_seed1_constdepth_fixmask_dev01_20260326_123724/thumbs/view001_input.jpg",
+    "view002": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/repos/CircleEditing/assets/review/frontier_seed1_constdepth_fixmask_dev01_20260326_123724/thumbs/view002_proxy_rgb.jpg"
+  },
+  "mask_sources": {
+    "view000": "anchor_diff_mask",
+    "view001": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/repos/CircleEditing/assets/review/frontier_seed1_constdepth_fixmask_dev01_20260326_123724/thumbs/view001_support_mask.png",
+    "view002": "/mnt/beegfs/ruocheng/circleediting_sigasia_20260506/repos/CircleEditing/assets/review/frontier_seed1_constdepth_fixmask_dev01_20260326_123724/thumbs/view002_support_mask.png"
+  },
+  "variants": {
+    "meanstd_color": {
+      "mean_mask_edit_magnitude": 0.2668387833982706,
+      "mean_boundary_change": 0.22223487496376038,
+      "mean_anchor_color_distance": 0.14456578716635704
+    },
+    "lab_chroma": {
+      "mean_mask_edit_magnitude": 0.04700055718421936,
+      "mean_boundary_change": 0.06408585328608751,
+      "mean_anchor_color_distance": 0.5396546721458435
+    },
+    "delta_warp": {
+      "mean_mask_edit_magnitude": 0.07447567582130432,
+      "mean_boundary_change": 0.02132408693432808,
+      "mean_anchor_color_distance": 0.5364727023988962
+    },
+    "patch_warp": {
+      "mean_mask_edit_magnitude": 0.3116038888692856,
+      "mean_boundary_change": 0.07086076214909554,
+      "mean_anchor_color_distance": 0.1520903194323182
+    },
+    "hybrid_proxy": {
+      "mean_mask_edit_magnitude": 0.25251857563853264,
+      "mean_boundary_change": 0.05180932208895683,
+      "mean_anchor_color_distance": 0.19593461276963353
+    },
+    "seamless_clone": {
+      "mean_mask_edit_magnitude": 0.1352241337299347,
+      "mean_boundary_change": 0.007954259170219302,
+      "mean_anchor_color_distance": 0.5031374394893646
+    },
+    "semantic_paint": {
+      "mean_mask_edit_magnitude": 0.27142370492219925,
+      "mean_boundary_change": 0.04698382131755352,
+      "mean_anchor_color_distance": 0.24991466477513313
+    },
+    "semantic_patchbase": {
+      "mean_mask_edit_magnitude": 0.3633214011788368,
+      "mean_boundary_change": 0.06032782979309559,
+      "mean_anchor_color_distance": 0.08682264387607574
+    },
+    "semantic_soft": {
+      "mean_mask_edit_magnitude": 0.09809701889753342,
+      "mean_boundary_change": 0.014342579524964094,
+      "mean_anchor_color_distance": 0.46222106367349625
+    },
+    "semantic_crisp": {
+      "mean_mask_edit_magnitude": 0.2003982476890087,
+      "mean_boundary_change": 0.03062774706631899,
+      "mean_anchor_color_distance": 0.35646917298436165
+    },
+    "semantic_repaired_crisp": {
+      "mean_mask_edit_magnitude": 0.3569397069513798,
+      "mean_boundary_change": 0.05322196148335934,
+      "mean_anchor_color_distance": 0.10695178806781769
+    },
+    "adaptive_final": {
+      "mean_mask_edit_magnitude": 0.31838782504200935,
+      "mean_boundary_change": 0.04127729590982199,
+      "mean_anchor_color_distance": 0.09948322176933289
+    },
+    "adaptive_final_bold": {
+      "mean_mask_edit_magnitude": 0.3329160064458847,
+      "mean_boundary_change": 0.04101871373131871,
+      "mean_anchor_color_distance": 0.07861791551113129
+    },
+    "adaptive_final_clean": {
+      "mean_mask_edit_magnitude": 0.29098206385970116,
+      "mean_boundary_change": 0.034366967622190714,
+      "mean_anchor_color_distance": 0.11890820041298866
+    },
+    "adaptive_final_balanced": {
+      "mean_mask_edit_magnitude": 0.3076303843408823,
+      "mean_boundary_change": 0.036974855698645115,
+      "mean_anchor_color_distance": 0.1062966026365757
+    }
+  },
+  "best_guess": "semantic_crisp",
+  "storage_note": "No checkpoints or heavyweight model weights were downloaded for this run.",
+  "gpu_note": "6",
+  "final_variant": "adaptive_final_balanced"
+}

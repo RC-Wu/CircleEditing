@@ -7,6 +7,7 @@ Current contents:
 - `runtime/EditSplat/`: locally mirrored runtime files pulled from the live EditSplat branch and patched in this session.
 - `assets/review/`: local visual review artifacts copied back from remote runs.
 - `reports/`: experiment reports and handoff notes.
+- `experiments/feedforward_scene_edit/`: lightweight proxy-first multi-view edit experiment for fast visual validation.
 
 Current focus:
 

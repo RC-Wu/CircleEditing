@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.env
+.DS_Store
+runs/
+sandboxes/20260506_dge_paper_standard/DGE/
